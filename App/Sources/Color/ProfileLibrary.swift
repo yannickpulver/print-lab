@@ -9,7 +9,7 @@ enum ProfileLibrary {
     ]
 
     static func printerProfiles() -> [CanonDriver.PaperProfile] {
-        folders.flatMap { folder in
+        folders.flatMap { folder -> [CanonDriver.PaperProfile] in
             let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
             return files
                 .filter { ["icc", "icm"].contains($0.pathExtension.lowercased()) && !$0.lastPathComponent.hasPrefix("CN_") }
