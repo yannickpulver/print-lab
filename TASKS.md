@@ -61,7 +61,7 @@
 - [x] Sparkle 2.10: update check in Release builds, "Check for Updates…" menu, signed appcast per release, cask `auto_updates`
 - [x] Local check: Sparkle helpers sign inside-out, app verifies, sign_update signs the zip with the keychain key
 - [x] `scripts/setup-release-secrets.sh`: wizard that sets all secrets and checks each value
-- [ ] Repo secrets set (APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_PASSWORD, HOMEBREW_TAP_TOKEN, SPARKLE_PRIVATE_KEY; APPLE_TEAM_ID is set)
+- [x] Repo secrets set (APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_PASSWORD, HOMEBREW_TAP_TOKEN, SPARKLE_PRIVATE_KEY; APPLE_TEAM_ID is set)
 - [ ] First release v0.1.0 through CI, then `brew install yannickpulver/tap/print-lab`
 
 ## Open
