@@ -20,7 +20,7 @@ struct LibraryView: View {
         .overlay {
             if model.library.isEmpty {
                 ContentUnavailableView {
-                    Label("No Images", systemImage: "photo.on.rectangle")
+                    Label { Text("No Images") } icon: { TablerIcon("photo", size: 40) }
                 } description: {
                     Text("Drop images here or press ⌘O.")
                 } actions: {
@@ -37,7 +37,7 @@ struct LibraryView: View {
                 Button {
                     model.showImporter = true
                 } label: {
-                    Label("Add Images", systemImage: "plus")
+                    Label { Text("Add Images") } icon: { TablerIcon("photo-plus", size: 18) }
                 }
             }
         }
@@ -73,7 +73,7 @@ private struct LibraryRow: View {
             }
             Spacer(minLength: 0)
             if isPlaced {
-                Image(systemName: "checkmark.circle.fill")
+                TablerIcon("circle-check", size: 15)
                     .foregroundStyle(.secondary)
                     .help("On the sheet")
             }

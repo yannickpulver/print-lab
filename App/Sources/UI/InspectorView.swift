@@ -4,57 +4,183 @@ struct InspectorView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Form {
-            PrinterSection()
-            if model.driver != nil {
-                PaperSection()
-                LayoutSection()
-                if model.selectedCell != nil { CellSection() }
-                ColorSection()
-                PrintSection()
-                PresetSection()
+        ScrollView {
+            VStack(spacing: 22) {
+                PrinterCard()
+                if model.driver != nil {
+                    PaperCard()
+                    LayoutCard()
+                    if model.selectedCell != nil { ImageCard() }
+                    ColorCard()
+                    PrintCard()
+                    PresetCard()
+                }
             }
+            .padding(16)
         }
-        .formStyle(.grouped)
+    }
+}
+
+// MARK: - Building blocks
+
+/// Tabler icon from the asset catalog, tinted like text.
+struct TablerIcon: View {
+    let name: String
+    var size: CGFloat = 16
+
+    init(_ name: String, size: CGFloat = 16) {
+        self.name = name
+        self.size = size
+    }
+
+    var body: some View {
+        Image("ti-\(name)")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+    }
+}
+
+/// A titled group: icon and title above a rounded panel.
+private struct Card<Content: View, Accessory: View>: View {
+    let title: String
+    let icon: String
+    @ViewBuilder var accessory: Accessory
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 7) {
+                TablerIcon(icon)
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                accessory
+            }
+            .padding(.horizontal, 4)
+            VStack(alignment: .leading, spacing: 12) {
+                content
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+}
+
+extension Card where Accessory == EmptyView {
+    init(title: String, icon: String, @ViewBuilder content: () -> Content) {
+        self.init(title: title, icon: icon, accessory: { EmptyView() }, content: content)
+    }
+}
+
+/// Label in a fixed column on the left, control on the right. Pickers fill the rest of the row,
+/// so all controls in a card start and end at the same edges.
+private struct Row<Control: View>: View {
+    let label: String
+    var labelWidth: CGFloat? = 92
+    @ViewBuilder var control: Control
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(width: labelWidth, alignment: .leading)
+                .fixedSize(horizontal: labelWidth == nil, vertical: false)
+            Spacer(minLength: 0)
+            control
+        }
+        .frame(minHeight: 22)
+    }
+}
+
+private struct SwitchRow: View {
+    let label: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Row(label: label, labelWidth: nil) {
+            Toggle(label, isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+    }
+}
+
+/// A hint below a control: small, with an icon.
+private struct Hint: View {
+    let icon: String
+    let text: String
+    var tint: Color = .secondary
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            TablerIcon(icon, size: 13)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.callout)
+        .foregroundStyle(tint)
+    }
+}
+
+struct MillimeterField: View {
+    let title: String
+    @Binding var value: Double
+
+    var body: some View {
+        HStack(spacing: 4) {
+            TextField(title, value: $value, format: .number.precision(.fractionLength(0...1)))
+                .labelsHidden()
+                .multilineTextAlignment(.trailing)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 56)
+            Text("mm").foregroundStyle(.secondary)
+        }
+        .fixedSize()
     }
 }
 
 // MARK: - Printer
 
-private struct PrinterSection: View {
+private struct PrinterCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         @Bindable var model = model
-        Section("Printer") {
-            Picker("Queue", selection: $model.queue) {
+        Card(title: "Printer", icon: "printer") {
+            Picker("Printer", selection: $model.queue) {
                 ForEach(model.queues) { queue in
                     Text(queue.info).tag(Optional(queue))
                 }
             }
+            .labelsHidden()
             if let queue = model.queue {
-                LabeledContent("Connection", value: queue.host ?? "USB")
-            }
-            if let signal = model.status.remoteUI?.signal {
-                LabeledContent("Wi-Fi Signal", value: "\(signal) %" + (signal < 50 ? " (weak)" : ""))
+                HStack(spacing: 6) {
+                    TablerIcon("wifi", size: 13)
+                    Text(queue.host ?? "USB")
+                    if let signal = model.status.remoteUI?.signal {
+                        Text("· \(signal) %" + (signal < 50 ? " (weak)" : ""))
+                    }
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
             }
             if let alert = model.printerAlert {
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(alert.title).bold()
-                        Text(alert.message)
-                    }
-                } icon: {
-                    Image(systemName: "exclamationmark.octagon.fill")
-                }
-                .foregroundStyle(alert.severity == .error ? .red : .orange)
+                Hint(icon: "alert-triangle", text: "\(alert.title): \(alert.message)",
+                     tint: alert.severity == .error ? .red : .orange)
             }
             ForEach(model.status.reasons.compactMap(Self.describe), id: \.self) { reason in
-                Label(reason, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                Hint(icon: "alert-triangle", text: reason, tint: .orange)
             }
             if !model.status.markers.isEmpty {
                 InkLevels(markers: model.status.markers)
+                    .padding(.top, 4)
             }
         }
     }
@@ -88,7 +214,7 @@ private struct InkLevels: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
             ForEach(markers) { marker in
-                VStack(spacing: 3) {
+                VStack(spacing: 4) {
                     GeometryReader { proxy in
                         ZStack(alignment: .bottom) {
                             RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.15))
@@ -97,7 +223,7 @@ private struct InkLevels: View {
                                 .frame(height: proxy.size.height * CGFloat(marker.level ?? 0) / 100)
                         }
                     }
-                    .frame(height: 44)
+                    .frame(height: 40)
                     Text(marker.name)
                         .font(.system(size: 8))
                         .foregroundStyle(.secondary)
@@ -107,44 +233,59 @@ private struct InkLevels: View {
                 .help("\(marker.name): \(marker.level.map { "\($0) %" } ?? "unknown")")
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
 
 // MARK: - Paper
 
-private struct PaperSection: View {
+private struct PaperCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         @Bindable var model = model
         if let driver = model.driver {
-            Section("Paper") {
-                Picker("Size", selection: $model.sheet.print.paperID) {
-                    ForEach(driver.papers) { paper in
-                        Text(paper.label).tag(paper.id)
+            Card(title: "Paper", icon: "file-description") {
+                Row(label: "Size") {
+                    Picker("Size", selection: $model.sheet.print.paperID) {
+                        ForEach(driver.papers) { paper in
+                            Text(paper.label).tag(paper.id)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                Picker("Orientation", selection: $model.sheet.orientation) {
-                    Text("Portrait").tag(Orientation.portrait)
-                    Text("Landscape").tag(Orientation.landscape)
-                }
-                .pickerStyle(.segmented)
-                Picker("Media Type", selection: $model.sheet.print.mediaTypeID) {
-                    ForEach(driver.mediaTypes) { media in
-                        Text(media.name).tag(media.id)
+                Row(label: "Orientation") {
+                    Picker("Orientation", selection: $model.sheet.orientation) {
+                        Text("Portrait").tag(Orientation.portrait)
+                        Text("Landscape").tag(Orientation.landscape)
                     }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                Row(label: "Media") {
+                    Picker("Media", selection: $model.sheet.print.mediaTypeID) {
+                        ForEach(driver.mediaTypes) { media in
+                            Text(media.name).tag(media.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 if !driver.paperSources.isEmpty {
-                    Picker("Paper Source", selection: $model.sheet.print.paperSourceID) {
-                        ForEach(driver.paperSources) { source in
-                            Text(source.name).tag(Optional(source.id))
+                    Row(label: "Feed") {
+                        Picker("Feed", selection: $model.sheet.print.paperSourceID) {
+                            ForEach(driver.paperSources) { source in
+                                Text(source.name).tag(Optional(source.id))
+                            }
                         }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
                 ForEach(model.conflicts, id: \.self) { conflict in
-                    Label(conflict, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                    Hint(icon: "alert-triangle", text: conflict, tint: .orange)
                 }
             }
         }
@@ -153,45 +294,59 @@ private struct PaperSection: View {
 
 // MARK: - Layout
 
-private struct LayoutSection: View {
+private struct LayoutCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         @Bindable var model = model
-        Section("Layout") {
-            Picker("Template", selection: $model.sheet.layout.template) {
-                ForEach(Template.allCases, id: \.self) { template in
-                    Text(template.label).tag(template)
+        Card(title: "Layout", icon: "layout-grid") {
+            Row(label: "Template") {
+                Picker("Template", selection: $model.sheet.layout.template) {
+                    ForEach(Template.allCases, id: \.self) { template in
+                        Text(template.label).tag(template)
+                    }
                 }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            switch model.sheet.layout.template {
-            case .single:
-                EmptyView()
-            case .grid:
-                Stepper("Rows: \(model.sheet.layout.rows)", value: $model.sheet.layout.rows, in: 1...12)
-                Stepper("Columns: \(model.sheet.layout.columns)", value: $model.sheet.layout.columns, in: 1...12)
-            case .contactSheet:
-                Stepper("Columns: \(model.sheet.layout.columns)", value: $model.sheet.layout.columns, in: 1...12)
+            if model.sheet.layout.template == .grid {
+                Row(label: "Rows") {
+                    Stepper("\(model.sheet.layout.rows)", value: $model.sheet.layout.rows, in: 1...12)
+                }
             }
             if model.sheet.layout.template != .single {
-                MillimeterField(title: "Gap", value: $model.sheet.layout.gapMM)
-            }
-            MarginsEditor(margins: $model.sheet.layout.margins)
-            LabeledContent("Printer Mode") {
-                HStack {
-                    Text(model.sheet.print.margin.label)
-                    Button("Borderless") { model.sheet.layout.margins = .all(0) }
-                        .controlSize(.small)
-                        .disabled(model.sheet.layout.margins == .all(0))
-                        .help("Set all margins to 0 mm")
+                Row(label: "Columns") {
+                    Stepper("\(model.sheet.layout.columns)", value: $model.sheet.layout.columns, in: 1...12)
+                }
+                Row(label: "Gap") {
+                    MillimeterField(title: "Gap", value: $model.sheet.layout.gapMM)
                 }
             }
-            ForEach(model.marginPlan?.notes ?? [], id: \.self) { note in
-                Label(note, systemImage: "info.circle")
-                    .foregroundStyle(.secondary)
+
+            Divider()
+
+            MarginsEditor(margins: $model.sheet.layout.margins)
+            HStack(spacing: 6) {
+                Group {
+                    TablerIcon("border-outer", size: 13)
+                    Text("Printer mode: \(model.sheet.print.margin.label)")
+                }
+                .foregroundStyle(.secondary)
+                Spacer()
+                Button("Make borderless") { model.sheet.layout.margins = .all(0) }
+                    .buttonStyle(.link)
+                    .disabled(model.sheet.layout.margins == .all(0))
+                    .help("Set all margins to 0 mm")
             }
-            Toggle("Captions", isOn: $model.sheet.layout.captions)
-            Toggle("Rotate images to fit cells", isOn: $model.sheet.layout.autoRotate)
+            .font(.callout)
+            ForEach(model.marginPlan?.notes ?? [], id: \.self) { note in
+                Hint(icon: "info-circle", text: note)
+            }
+
+            Divider()
+
+            SwitchRow(label: "Captions", isOn: $model.sheet.layout.captions)
+            SwitchRow(label: "Rotate to fit cells", isOn: $model.sheet.layout.autoRotate)
         }
     }
 }
@@ -201,75 +356,91 @@ private struct MarginsEditor: View {
     @State private var individual = false
 
     var body: some View {
-        Toggle("Individual margins", isOn: $individual)
-            .onAppear { individual = !(margins.top == margins.left && margins.left == margins.bottom
-                && margins.bottom == margins.right) }
+        Row(label: "Margins") {
+            if !individual {
+                MillimeterField(title: "Margins", value: Binding(
+                    get: { margins.top },
+                    set: { margins = .all($0) }
+                ))
+            }
+            Button(individual ? "All sides" : "Per side") {
+                if individual { margins = .all(margins.top) }
+                individual.toggle()
+            }
+            .buttonStyle(.link)
+            .font(.callout)
+            .help(individual ? "Same margin on all sides" : "Set each side separately")
+        }
+        .onAppear {
+            individual = !(margins.top == margins.left && margins.left == margins.bottom
+                && margins.bottom == margins.right)
+        }
         if individual {
-            MillimeterField(title: "Top", value: $margins.top)
-            MillimeterField(title: "Left", value: $margins.left)
-            MillimeterField(title: "Bottom", value: $margins.bottom)
-            MillimeterField(title: "Right", value: $margins.right)
-        } else {
-            MillimeterField(title: "Margins", value: Binding(
-                get: { margins.top },
-                set: { margins = .all($0) }
-            ))
+            Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow {
+                    Text("Top").foregroundStyle(.secondary)
+                    MillimeterField(title: "Top", value: $margins.top)
+                    Text("Bottom").foregroundStyle(.secondary)
+                    MillimeterField(title: "Bottom", value: $margins.bottom)
+                }
+                GridRow {
+                    Text("Left").foregroundStyle(.secondary)
+                    MillimeterField(title: "Left", value: $margins.left)
+                    Text("Right").foregroundStyle(.secondary)
+                    MillimeterField(title: "Right", value: $margins.right)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 }
 
-struct MillimeterField: View {
-    let title: String
-    @Binding var value: Double
+// MARK: - Selected image
 
-    var body: some View {
-        TextField(title, value: $value, format: .number.precision(.fractionLength(0...1)))
-            .multilineTextAlignment(.trailing)
-            .textFieldStyle(.roundedBorder)
-            .frame(maxWidth: .infinity)
-            .overlay(alignment: .trailing) {
-                Text("mm").foregroundStyle(.secondary).padding(.trailing, -24)
-            }
-            .padding(.trailing, 24)
-    }
-}
-
-// MARK: - Selected cell
-
-private struct CellSection: View {
+private struct ImageCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         if let cell = model.selectedCell {
-            Section("Selected Image") {
+            Card(title: "Image", icon: "photo") {
                 if let item = model.item(cell.imageID) {
-                    LabeledContent("File", value: item.name)
-                    LabeledContent("Print size", value: printSize(cell))
-                    LabeledContent("Resolution", value: resolution(cell, item: item))
-                    Picker("Fit", selection: Binding(
-                        get: { cell.fit },
-                        set: { fit in model.updateCell(cell.id) { $0.fit = fit; $0.cropOffset = .zero } }
-                    )) {
-                        Text("Fill").tag(Fit.fill)
-                        Text("Fit").tag(Fit.fit)
+                    Text(item.name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    HStack(spacing: 6) {
+                        Text(printSize(cell))
+                        Text("·")
+                        Text(resolution(cell, item: item))
                     }
-                    .pickerStyle(.segmented)
-                    HStack {
-                        Button {
-                            model.updateCell(cell.id) { $0.quarterTurns -= 1 }
-                        } label: { Label("Rotate Left", systemImage: "rotate.left") }
-                        Button {
-                            model.updateCell(cell.id) { $0.quarterTurns += 1 }
-                        } label: { Label("Rotate Right", systemImage: "rotate.right") }
-                        Spacer()
-                        Button("Center") { model.updateCell(cell.id) { $0.cropOffset = .zero } }
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    Row(label: "Fit") {
+                        Picker("Fit", selection: Binding(
+                            get: { cell.fit },
+                            set: { fit in model.updateCell(cell.id) { $0.fit = fit; $0.cropOffset = .zero } }
+                        )) {
+                            Text("Fill").tag(Fit.fill)
+                            Text("Fit").tag(Fit.fit)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    HStack(spacing: 14) {
+                        Button { model.updateCell(cell.id) { $0.quarterTurns -= 1 } } label: { TablerIcon("rotate") }
+                            .help("Rotate left")
+                        Button { model.updateCell(cell.id) { $0.quarterTurns += 1 } } label: { TablerIcon("rotate-clockwise") }
+                            .help("Rotate right")
+                        Button { model.updateCell(cell.id) { $0.cropOffset = .zero } } label: { TablerIcon("focus-centered") }
+                            .help("Center the crop")
                             .disabled(cell.cropOffset == .zero)
+                        Spacer()
+                        Button { model.clearCell(cell.id) } label: { TablerIcon("trash") }
+                            .help("Remove the image from this cell")
                     }
-                    .labelStyle(.iconOnly)
-                    Button("Remove from Cell", role: .destructive) { model.clearCell(cell.id) }
+                    .buttonStyle(.borderless)
                 } else {
-                    Text("Drop an image from the list onto this cell, or double-click an image.")
-                        .foregroundStyle(.secondary)
+                    Hint(icon: "photo-plus", text: "Drop an image from the list onto this cell, or double-click an image.")
                 }
             }
         }
@@ -290,21 +461,28 @@ private struct CellSection: View {
 
 // MARK: - Color
 
-private struct ColorSection: View {
+private struct ColorCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         @Bindable var model = model
-        Section("Color") {
+        Card(title: "Color", icon: "palette") {
             ProfilePicker()
-            Picker("Rendering Intent", selection: $model.color.intent) {
-                ForEach(RenderingIntent.allCases, id: \.self) { intent in
-                    Text(intent.label).tag(intent)
+            Row(label: "Intent") {
+                Picker("Intent", selection: $model.color.intent) {
+                    ForEach(RenderingIntent.allCases, id: \.self) { intent in
+                        Text(intent.label).tag(intent)
+                    }
                 }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            Toggle("Black Point Compensation", isOn: $model.color.blackPointCompensation)
-            Toggle("Softproof", isOn: $model.softproof)
-            Toggle("Simulate Paper White", isOn: $model.simulatePaperWhite)
+            SwitchRow(label: "Black point compensation", isOn: $model.color.blackPointCompensation)
+
+            Divider()
+
+            SwitchRow(label: "Softproof", isOn: $model.softproof)
+            SwitchRow(label: "Simulate paper white", isOn: $model.simulatePaperWhite)
                 .disabled(!model.softproof)
         }
     }
@@ -320,61 +498,89 @@ private struct ProfilePicker: View {
         @Bindable var model = model
         let canon = model.driver?.profile(for: model.sheet.print.mediaTypeID)?.fileName ?? "none"
         let custom = model.sheet.print.customProfilePath
-        Picker("Profile", selection: $model.sheet.print.customProfilePath) {
-            Text("Canon: \(canon)").tag(String?.none)
-            Divider()
-            ForEach(installed, id: \.url) { profile in
-                Text(profile.fileName).tag(Optional(profile.url.path))
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Profile").foregroundStyle(.secondary)
+                Spacer()
+                Button("Choose File…") { choosingFile = true }
+                    .buttonStyle(.link)
+                    .font(.callout)
             }
-            if let custom, !installed.contains(where: { $0.url.path == custom }) {
-                Text(URL(fileURLWithPath: custom).lastPathComponent).tag(Optional(custom))
+            Picker("Profile", selection: $model.sheet.print.customProfilePath) {
+                Text("Canon: \(canon)").tag(String?.none)
+                Divider()
+                ForEach(installed, id: \.url) { profile in
+                    Text(profile.fileName).tag(Optional(profile.url.path))
+                }
+                if let custom, !installed.contains(where: { $0.url.path == custom }) {
+                    Text(URL(fileURLWithPath: custom).lastPathComponent).tag(Optional(custom))
+                }
             }
+            .labelsHidden()
         }
-        Button("Choose Profile File…") { choosingFile = true }
-            .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.init(filenameExtension: "icc")!,
-                                                                            .init(filenameExtension: "icm")!]) { result in
-                if case .success(let url) = result { model.sheet.print.customProfilePath = url.path }
-            }
-            .onAppear { installed = ProfileLibrary.printerProfiles() }
+        .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.init(filenameExtension: "icc")!,
+                                                                        .init(filenameExtension: "icm")!]) { result in
+            if case .success(let url) = result { model.sheet.print.customProfilePath = url.path }
+        }
+        .onAppear { installed = ProfileLibrary.printerProfiles() }
     }
 }
 
 // MARK: - Print
 
-private struct PrintSection: View {
+private struct PrintCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         @Bindable var model = model
         if let driver = model.driver {
-            Section("Print") {
-                Picker("Quality", selection: $model.sheet.print.qualityID) {
-                    ForEach(driver.qualities) { quality in
-                        Text(quality.name).tag(quality.id)
+            Card(title: "Print", icon: "send") {
+                Row(label: "Quality") {
+                    Picker("Quality", selection: $model.sheet.print.qualityID) {
+                        ForEach(driver.qualities) { quality in
+                            Text(quality.name).tag(quality.id)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 if !driver.dryingTimes.isEmpty {
-                    Picker("Drying Time", selection: $model.sheet.print.dryingTimeID) {
-                        ForEach(driver.dryingTimes) { time in
-                            Text(time.name).tag(Optional(time.id))
+                    Row(label: "Drying time") {
+                        Picker("Drying time", selection: $model.sheet.print.dryingTimeID) {
+                            ForEach(driver.dryingTimes) { time in
+                                Text(time.name).tag(Optional(time.id))
+                            }
                         }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
-                HStack {
-                    if model.isPreparingJob {
+                if model.isPreparingJob {
+                    HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
                         Text("Preparing…").foregroundStyle(.secondary)
-                    } else if let job = model.job {
+                    }
+                } else if let job = model.job {
+                    HStack {
                         Text(job.state.label).foregroundStyle(.secondary)
+                        Spacer()
                         if !job.state.isFinal {
-                            Button("Cancel", role: .destructive) { model.cancelJob() }
+                            Button("Cancel Job", role: .destructive) { model.cancelJob() }
+                                .buttonStyle(.link)
                         }
                     }
-                    Spacer()
-                    Button("Print…") { model.requestPrint() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!model.canPrint)
+                    .font(.callout)
                 }
+                Button {
+                    model.requestPrint()
+                } label: {
+                    Label { Text("Print…") } icon: { TablerIcon("printer") }
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!model.canPrint)
+                .padding(.top, 4)
             }
         }
     }
@@ -382,34 +588,46 @@ private struct PrintSection: View {
 
 // MARK: - Presets
 
-private struct PresetSection: View {
+private struct PresetCard: View {
     @Environment(AppModel.self) private var model
     @State private var newName = ""
 
     var body: some View {
-        Section("Presets") {
+        Card(title: "Presets", icon: "bookmark") {
             ForEach(model.presets) { preset in
-                HStack {
-                    Button(preset.name) { model.apply(preset) }
-                        .buttonStyle(.link)
+                HStack(spacing: 8) {
+                    Button { model.apply(preset) } label: {
+                        Text(preset.name)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.link)
+                    .help("Apply \(preset.name)")
                     Spacer()
                     Button {
                         model.presets.removeAll { $0.id == preset.id }
-                    } label: { Image(systemName: "trash") }
+                    } label: { TablerIcon("trash", size: 14) }
                         .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
                         .help("Delete preset")
                 }
             }
-            HStack {
-                TextField("New preset name", text: $newName)
+            HStack(spacing: 8) {
+                TextField("Save current settings as…", text: $newName)
                     .textFieldStyle(.roundedBorder)
-                Button("Save") {
-                    model.savePreset(named: newName)
-                    newName = ""
-                }
-                .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .onSubmit(save)
+                Button(action: save) { TablerIcon("plus", size: 14) }
+                    .help("Save preset")
+                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
+    }
+
+    private func save() {
+        guard !newName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        model.savePreset(named: newName)
+        newName = ""
     }
 }
 

@@ -14,7 +14,7 @@ struct ContentView: View {
             SheetCanvasView()
                 .inspector(isPresented: $showInspector) {
                     InspectorView()
-                        .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
+                        .inspectorColumnWidth(min: 300, ideal: 340, max: 440)
                 }
         }
         .toolbar {
@@ -23,13 +23,13 @@ struct ContentView: View {
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 Toggle(isOn: $model.softproof) {
-                    Label("Softproof", systemImage: "eye")
+                    Label { Text("Softproof") } icon: { TablerIcon("eye", size: 18) }
                 }
                 .help("Show colors as they will look on the selected paper")
                 Button {
                     showInspector.toggle()
                 } label: {
-                    Label("Inspector", systemImage: "sidebar.right")
+                    Label { Text("Inspector") } icon: { TablerIcon("layout-sidebar-right", size: 18) }
                 }
             }
         }
@@ -99,8 +99,7 @@ struct PrinterAlertBanner: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: alert.severity == .error ? "exclamationmark.octagon.fill" : "pause.circle.fill")
-                .font(.title2)
+            TablerIcon(alert.severity == .error ? "alert-triangle" : "player-pause", size: 22)
                 .foregroundStyle(alert.severity == .error ? .red : .orange)
             VStack(alignment: .leading, spacing: 3) {
                 Text(alert.title).font(.headline)

@@ -19,6 +19,8 @@ let project = Project(
         "MACOSX_DEPLOYMENT_TARGET": "26.0",
         // CI passes `CURRENT_PROJECT_VERSION=<run number>`.
         "CURRENT_PROJECT_VERSION": "1",
+        // The asset catalog holds icons only; the app uses the system accent color.
+        "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME": "",
     ]),
     targets: [
         .target(

@@ -17,11 +17,11 @@ struct SheetCanvasView: View {
                     .frame(width: paper.width * scale, height: paper.height * scale)
                     .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
             } else {
-                ContentUnavailableView(
-                    "No Canon Printer",
-                    systemImage: "printer",
-                    description: Text("Add the PRO-1000 with Canon's driver in System Settings → Printers & Scanners.")
-                )
+                ContentUnavailableView {
+                    Label { Text("No Canon Printer") } icon: { TablerIcon("printer", size: 40) }
+                } description: {
+                    Text("Add the PRO-1000 with Canon's driver in System Settings → Printers & Scanners.")
+                }
             }
         }
         .background(Color(nsColor: .underPageBackgroundColor))
@@ -101,8 +101,7 @@ private struct CellOverlay: View {
             if cell.imageID == nil {
                 Rectangle()
                     .fill(Color.secondary.opacity(isTargeted ? 0.2 : 0.07))
-                Image(systemName: "photo.badge.plus")
-                    .font(.system(size: min(28, cell.frame.width * scale / 4)))
+                TablerIcon("photo-plus", size: min(28, cell.frame.width * scale / 4))
                     .foregroundStyle(.tertiary)
             } else if isTargeted {
                 Rectangle().fill(Color.accentColor.opacity(0.2))

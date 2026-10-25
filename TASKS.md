@@ -64,6 +64,10 @@
 - [x] Repo secrets set (APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_PASSWORD, HOMEBREW_TAP_TOKEN, SPARKLE_PRIVATE_KEY; APPLE_TEAM_ID is set)
 - [x] First release v0.1.0 through CI, `brew install yannickpulver/tap/print-lab` works (notarized, Gatekeeper accepts)
 
+## UI
+- [x] Print confirmation dialog with a summary, no print button in the toolbar
+- [x] Inspector as cards with Tabler icons (MIT, App/Resources/TABLER-LICENSE.txt), fixed label column, more spacing
+
 ## Open
 - [x] First real print over the Wi-Fi queue (Tecco PD190 Duo Matt, A4, 2×2 grid)
 - [ ] Test print vs. Professional Print & Layout on the same paper (manual)
