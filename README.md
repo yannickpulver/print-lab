@@ -64,11 +64,14 @@ The version lives in `VERSION`. Bump it and push to `main`:
 
 ```
 push to main with a new VERSION
-  → GitHub Actions: test, build, sign (Developer ID), notarize, release Print-Lab.zip
+  → GitHub Actions: test, build, sign (Developer ID), notarize, release Print-Lab.zip + appcast.xml
   → homebrew-tap: Casks/print-lab.rb gets the new version and checksum
+  → installed apps: Sparkle finds the update via the appcast
 ```
 
 A version that is already released is not built again.
+
+The release needs GitHub secrets for signing, notarization, Sparkle and the tap. `scripts/setup-release-secrets.sh` walks through them once and checks each value.
 
 ## Layout
 

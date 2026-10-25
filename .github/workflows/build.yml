@@ -74,8 +74,15 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           APP="dist/Print Lab.app"
-          codesign --force --options runtime --timestamp \
-            --sign "Developer ID Application: Yannick Pulver ($APPLE_TEAM_ID)" "$APP"
+          SIGN=(codesign --force --options runtime --timestamp --sign "Developer ID Application: Yannick Pulver ($APPLE_TEAM_ID)")
+          # Sparkle's helpers are signed inside-out before the framework and the app.
+          SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+          "${SIGN[@]}" "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
+          "${SIGN[@]}" --preserve-metadata=entitlements "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
+          "${SIGN[@]}" "$SPARKLE/Versions/B/Autoupdate"
+          "${SIGN[@]}" "$SPARKLE/Versions/B/Updater.app"
+          "${SIGN[@]}" "$SPARKLE"
+          "${SIGN[@]}" "$APP"
           codesign --verify --deep --strict "$APP"
 
       - name: Notarize app
@@ -104,13 +111,44 @@ jobs:
           rm dist/Print-Lab.zip
           ditto -c -k --keepParent "dist/Print Lab.app" "dist/Print-Lab.zip"
 
+      - name: Write appcast
+        if: steps.version.outputs.release == 'true'
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ github.run_number }}
+        run: |
+          # One item per feed: the app reads it from `releases/latest/download/appcast.xml`.
+          SIGNATURE=$(echo "$SPARKLE_PRIVATE_KEY" \
+            | build/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file - dist/Print-Lab.zip)
+          REPO="https://github.com/${{ github.repository }}"
+          cat > dist/appcast.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <title>Print Lab</title>
+              <item>
+                <title>$VERSION</title>
+                <sparkle:version>$BUILD</sparkle:version>
+                <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+                <sparkle:fullReleaseNotesLink>$REPO/releases/tag/v$VERSION</sparkle:fullReleaseNotesLink>
+                <enclosure url="$REPO/releases/download/v$VERSION/Print-Lab.zip" $SIGNATURE type="application/octet-stream"/>
+              </item>
+            </channel>
+          </rss>
+          EOF
+          cat dist/appcast.xml
+
       - name: Create release
         if: steps.version.outputs.release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Print Lab ${{ steps.version.outputs.version }}
-          files: dist/Print-Lab.zip
+          files: |
+            dist/Print-Lab.zip
+            dist/appcast.xml
           generate_release_notes: true
 
   update-homebrew:

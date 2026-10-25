@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Observation
+import Sparkle
 
 struct LibraryItem: Identifiable, @unchecked Sendable {
     let id: UUID
@@ -56,6 +57,17 @@ final class AppModel {
     private(set) var displayImages: [UUID: CGImage] = [:]
     /// Paper color on screen when paper white is simulated, else nil (plain white).
     private(set) var paperColor: CGColor?
+
+    /// Sparkle updates from the GitHub releases. Debug builds carry build number 1 and skip the check.
+    @ObservationIgnored
+    private let updater = SPUStandardUpdaterController(
+        startingUpdater: !AppModel.isDebug, updaterDelegate: nil, userDriverDelegate: nil)
+
+    #if DEBUG
+    private static let isDebug = true
+    #else
+    private static let isDebug = false
+    #endif
 
     private var previewGeneration = 0
     private var statusTask: Task<Void, Never>?
@@ -316,6 +328,10 @@ final class AppModel {
                 self.paperColor = paperColor
             }
         }
+    }
+
+    func checkForUpdates() {
+        updater.checkForUpdates(nil)
     }
 
     // MARK: - Printing

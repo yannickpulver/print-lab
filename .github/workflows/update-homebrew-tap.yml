@@ -54,6 +54,7 @@ jobs:
             homepage "https://github.com/yannickpulver/print-lab"
 
             depends_on macos: ">= :tahoe"
+            auto_updates true
 
             app "Print Lab.app"
 

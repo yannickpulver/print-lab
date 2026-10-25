@@ -13,6 +13,9 @@ struct PrintLabApp: App {
                 .onAppear { appDelegate.model = model }
         }
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { model.checkForUpdates() }
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Add Images…") { model.showImporter = true }
                     .keyboardShortcut("o")
