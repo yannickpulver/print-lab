@@ -1,0 +1,58 @@
+# Canon Print Lab – Tasks
+
+## Setup
+- [x] Color path verified without paper: pixels tagged sRGB pass macOS + Canon filter chain bit-exact (16-bit)
+- [x] Tuist project, macOS 26, Swift 6, tests target
+- [x] README, LICENSE (MIT), .gitignore
+- [x] Canon driver queue (`Canon_PRO_1000_series_4`) switched from USB to `ipp://192.168.1.175/ipp/print`, renamed "Canon PRO-1000 (Canon-Treiber, WLAN)"
+
+## Printer
+- [x] PPD parser: options, page sizes (dimension + imageable area), UIConstraints, cupsICCProfile
+- [x] Canon driver model: media types, qualities, paper sizes, media → ICC profile mapping
+- [x] Find Canon driver queues via CUPS
+- [x] Printer status via IPP: state, reasons, ink levels + colors
+
+## Color
+- [x] Load images (TIFF/JPEG/PNG/HEIC/PSD) at 16 bit with their profile, EXIF orientation
+- [x] ColorSync transform: source → paper profile (intent + BPC)
+- [x] Softproof: paper → display, optional paper white
+
+## Layout
+- [x] Sheet model: paper, orientation, borderless, margins, placed images (fill/fit, rotation, crop pan)
+- [x] Templates: single, grid n×m with gap, contact sheet with captions
+
+## Print
+- [x] Render sheet to PDF (converted images tagged sRGB = handoff space), images at 600 ppi max
+- [x] Submit via libcups with Canon options, track job state
+- [x] Integration test: PDF → cgpdftoraster → pixels equal converted values (±2 of 65535)
+
+## UI
+- [x] Library sidebar with drag & drop, open files from Finder / Dock
+- [x] Sheet canvas: select, drag to pan crop, drop image onto cell
+- [x] Inspector: printer, paper, layout, color, print
+- [x] Toolbar: softproof toggle, printer status
+- [x] Presets (save/load settings)
+
+## Remote control
+- [x] `canonprintlab://configure?…` sets images, paper, media, quality, layout, color, per-cell fit/turns/crop
+- [x] `state.json` in Application Support with settings, cells, conflicts, printer status, option lists, last command errors
+- [x] No print command on purpose: printing is a button press
+
+## Profiles
+- [x] Third-party ICC profiles: picker (installed printer profiles + file), remote key `profile`
+- [x] Tecco PD190 Duo Matt: `TECCO_pro1000_PD190_HWFAP.icc` (Tecco package via dinax.com), media type Heavyweight Fine Art Paper, installed in ~/Library/ColorSync/Profiles
+
+## Printer status
+- [x] Support code + message from the printer's Remote UI (`JS_MDL/model.js`), Canon help link, Wi-Fi signal
+- [x] Printer-side job state: banner "Job paused on the printer" when the printer stopped a job
+- [x] Banner above the sheet + red toolbar state for printer errors (e.g. 1250 output tray closed)
+- [ ] "Done" comes too early: printer reports the job completed when all data arrived, ~10 min before the paper is out, and says "idle" over IPP while printing. Log Remote UI + IPP during the next print, then show "Printing…" until the paper is out
+
+## Open
+- [ ] First real print over the new WLAN queue (needs Yannick + paper)
+- [ ] Test print vs. Professional Print & Layout on the same paper (needs Yannick)
+- [ ] Gamut warning in softproof
+- [ ] Multiple sheets per document, save/open layouts
+- [ ] Free cell positioning (drag/resize cells)
+- [ ] German localization
+- [ ] Rename before publishing (trademark)
