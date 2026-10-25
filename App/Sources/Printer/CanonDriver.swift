@@ -213,6 +213,62 @@ struct CanonDriver: Sendable {
         "LWPP": "Lightweight Photo Paper",
     ]
 
+    /// Paper maker prefixes in profile file names.
+    static let profileMakers: [String: String] = [
+        "CN": "Canon",
+        "HFA": "Hahnemühle",
+        "HANEMUEHLE": "Hahnemühle",
+        "HAHNEMUEHLE": "Hahnemühle",
+        "TECCO": "Tecco",
+        "ILFORD": "Ilford",
+        "CANSON": "Canson",
+        "MOAB": "Moab",
+    ]
+
+    /// Readable name from a profile file name: maker and paper, ink in brackets.
+    /// "HFA_CanPro1000_MK_PhotoRag.icc" → "Hahnemühle Photo Rag (MK)",
+    /// "CN_PRO-1000_500_PhotoPaperProLuster.icc" → "Canon Photo Paper Pro Luster".
+    static func displayName(forProfileNamed fileName: String) -> String {
+        var base = (fileName as NSString).deletingPathExtension
+        if base.hasPrefix(profilePrefix) {
+            base.removeFirst(profilePrefix.count)
+            if base.hasSuffix("-P") { base.removeLast(2) }
+            return "Canon " + spaced(base)
+        }
+        let printerTokens: Set<String> = ["CAN", "PRO", "CANPRO", "1000", "PRO1000", "CANPRO1000"]
+        var maker: String?
+        var ink: String?
+        var words: [String] = []
+        for token in base.split(whereSeparator: { $0 == "_" || $0 == "-" || $0 == " " }).map(String.init) {
+            let upper = token.uppercased()
+            if maker == nil, words.isEmpty, let name = profileMakers[upper] {
+                maker = name
+            } else if upper == "MK" || upper == "PK" {
+                ink = upper
+            } else if !printerTokens.contains(upper), mediaCodes[upper] == nil {
+                words.append(spaced(token))
+            }
+        }
+        guard !words.isEmpty else { return base.replacingOccurrences(of: "_", with: " ") }
+        let name = ([maker].compactMap { $0 } + words).joined(separator: " ")
+        return ink.map { "\(name) (\($0))" } ?? name
+    }
+
+    /// "PhotoPaperProLuster" → "Photo Paper Pro Luster", "FAPearl" → "FA Pearl".
+    private static func spaced(_ s: String) -> String {
+        let chars = Array(s)
+        var out = ""
+        for (i, c) in chars.enumerated() {
+            if i > 0, c.isUppercase {
+                let previous = chars[i - 1]
+                let next = i + 1 < chars.count ? chars[i + 1] : nil
+                if previous.isLowercase || (previous.isUppercase && next?.isLowercase == true) { out.append(" ") }
+            }
+            out.append(c)
+        }
+        return out
+    }
+
     /// Media type a profile was made for, read from its file name. Nil when the name does not say.
     func mediaType(forProfileNamed fileName: String) -> MediaType? {
         if let canon = mediaTypes.first(where: { $0.profile?.fileName == fileName }) { return canon }

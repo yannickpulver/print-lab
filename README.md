@@ -22,7 +22,7 @@ brew install yannickpulver/tap/print-lab
 
 Print Lab needs Canon's IJ driver for your printer and the printer added in System Settings → Printers & Scanners.
 
-Print Lab is tested on the PRO-1000. Other Canon printers with the IJ driver (e.g. PRO-300, PRO-200) show up too and get paper sizes, media types and quality from their own driver. Canon's paper profiles are matched by their PRO-1000 file names so far; with another printer, choose the profile in the Media card.
+Print Lab is tested on the PRO-1000. Other Canon printers with the IJ driver (e.g. PRO-300, PRO-200) show up too and get paper sizes, media types and quality from their own driver. Canon's paper profiles are matched by their PRO-1000 file names so far; with another printer, choose the profile in the Paper card.
 
 ## How colors flow
 

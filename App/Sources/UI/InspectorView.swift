@@ -10,7 +10,6 @@ struct InspectorView: View {
                 PrinterCard()
                 if model.driver != nil {
                     PaperCard()
-                    MediaCard()
                     LayoutCard()
                     if model.selectedCell != nil { ImageCard() }
                     ColorCard()
@@ -95,6 +94,31 @@ private struct Row<Control: View>: View {
             control
         }
         .frame(minHeight: 22)
+    }
+}
+
+/// Label above a control that needs the full width, e.g. long media and profile names.
+private struct StackedRow<Accessory: View, Control: View>: View {
+    let label: String
+    @ViewBuilder var accessory: Accessory
+    @ViewBuilder var control: Control
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label).foregroundStyle(.secondary)
+                Spacer()
+                accessory
+            }
+            control
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+extension StackedRow where Accessory == EmptyView {
+    init(label: String, @ViewBuilder control: () -> Control) {
+        self.init(label: label, accessory: { EmptyView() }, control: control)
     }
 }
 
@@ -240,6 +264,7 @@ private struct InkLevels: View {
 
 // MARK: - Paper
 
+/// Everything about the sheet in the printer: size, media type, feed and the profile measured for that media.
 private struct PaperCard: View {
     @Environment(AppModel.self) private var model
 
@@ -265,6 +290,17 @@ private struct PaperCard: View {
                     .pickerStyle(.segmented)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
+
+                Divider()
+
+                StackedRow(label: "Media type") {
+                    Picker("Media type", selection: $model.sheet.print.mediaTypeID) {
+                        ForEach(driver.mediaTypes) { media in
+                            Text(media.name).tag(media.id)
+                        }
+                    }
+                    .labelsHidden()
+                }
                 if !driver.paperSources.isEmpty {
                     Row(label: "Feed") {
                         Picker("Feed", selection: $model.sheet.print.paperSourceID) {
@@ -279,30 +315,9 @@ private struct PaperCard: View {
                 ForEach(model.conflicts, id: \.self) { conflict in
                     Hint(icon: "alert-triangle", text: conflict, tint: .orange)
                 }
-            }
-        }
-    }
-}
 
-// MARK: - Media
+                Divider()
 
-/// Media type and profile belong together: the profile is measured for one media type.
-private struct MediaCard: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        @Bindable var model = model
-        if let driver = model.driver {
-            Card(title: "Media", icon: "droplet") {
-                Row(label: "Type") {
-                    Picker("Media type", selection: $model.sheet.print.mediaTypeID) {
-                        ForEach(driver.mediaTypes) { media in
-                            Text(media.name).tag(media.id)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                }
                 ProfilePicker()
                 if let profile = model.paperProfile,
                    let expected = driver.mediaType(forProfileNamed: profile.fileName),
@@ -523,33 +538,64 @@ private struct ProfilePicker: View {
 
     var body: some View {
         @Bindable var model = model
-        let canon = model.driver?.profile(for: model.sheet.print.mediaTypeID)?.fileName ?? "none"
+        let canon = model.driver?.profile(for: model.sheet.print.mediaTypeID).map { name($0.fileName) } ?? "Canon"
         let custom = model.sheet.print.customProfilePath
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Profile").foregroundStyle(.secondary)
-                Spacer()
-                Button("Choose File…") { choosingFile = true }
-                    .buttonStyle(.link)
-                    .font(.callout)
-            }
-            Picker("Profile", selection: $model.sheet.print.customProfilePath) {
-                Text("Canon: \(canon)").tag(String?.none)
-                Divider()
-                ForEach(installed, id: \.url) { profile in
-                    Text(profile.fileName).tag(Optional(profile.url.path))
+        StackedRow(label: "Profile") {
+            Button("Choose File…") { choosingFile = true }
+                .buttonStyle(.link)
+                .font(.callout)
+        } control: {
+            VStack(alignment: .leading, spacing: 4) {
+                Picker("Profile", selection: $model.sheet.print.customProfilePath) {
+                    Text(canon).tag(String?.none)
+                    Divider()
+                    let names = menuNames
+                    ForEach(installed, id: \.url) { profile in
+                        Text(names[profile.url] ?? profile.fileName).tag(Optional(profile.url.path))
+                    }
+                    if let custom, !installed.contains(where: { $0.url.path == custom }) {
+                        Text(name(URL(fileURLWithPath: custom).lastPathComponent)).tag(Optional(custom))
+                    }
                 }
-                if let custom, !installed.contains(where: { $0.url.path == custom }) {
-                    Text(URL(fileURLWithPath: custom).lastPathComponent).tag(Optional(custom))
+                .labelsHidden()
+                if let file = model.paperProfile?.fileName {
+                    Text(file)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .padding(.leading, 4)
                 }
             }
-            .labelsHidden()
         }
         .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.init(filenameExtension: "icc")!,
                                                                         .init(filenameExtension: "icm")!]) { result in
             if case .success(let url) = result { model.sheet.print.customProfilePath = url.path }
         }
         .onAppear { installed = ProfileLibrary.printerProfiles() }
+    }
+
+    private func name(_ fileName: String) -> String {
+        CanonDriver.displayName(forProfileNamed: fileName)
+    }
+
+    /// Two files can read the same, e.g. two Photo Rag profiles. The media type in the file name
+    /// tells them apart, else the file name does.
+    private var menuNames: [URL: String] {
+        func twins(_ names: [URL: String], _ url: URL) -> Bool {
+            names.values.filter { $0 == names[url] }.count > 1
+        }
+        var names = Dictionary(uniqueKeysWithValues: installed.map { ($0.url, name($0.fileName)) })
+        let plain = names
+        for profile in installed where twins(plain, profile.url) {
+            if let media = model.driver?.mediaType(forProfileNamed: profile.fileName) {
+                names[profile.url] = "\(plain[profile.url]!) · \(media.name)"
+            }
+        }
+        for profile in installed where twins(names, profile.url) {
+            names[profile.url] = "\(names[profile.url]!) – \(profile.fileName)"
+        }
+        return names
     }
 }
 

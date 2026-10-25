@@ -105,6 +105,19 @@ struct CanonDriverTests {
         #expect(driver.mediaType(forProfileNamed: "HFA_CanPro1000_MK_PhotoRag.icc") == nil)
     }
 
+    @Test(arguments: [
+        ("CN_PRO-1000_500_HighestDensityFineArtPaper-P.icc", "Canon Highest Density Fine Art Paper"),
+        ("CN_PRO-1000_500_PhotoPaperProLuster.icc", "Canon Photo Paper Pro Luster"),
+        ("HFA_CanPro1000_MK_PhotoRag.icc", "Hahnemühle Photo Rag (MK)"),
+        ("Hanemuehle_CanPro1000_PK_FAPearl_BarytaSetting_BarytaPapier.icc", "Hahnemühle FA Pearl Baryta Setting Baryta Papier (PK)"),
+        ("TECCO_pro1000_PD190_HWFAP.icc", "Tecco PD190"),
+        ("ILFORD_CANpro-1000_GPTC_HDFAP.icc", "Ilford GPTC"),
+        ("My Paper.icc", "My Paper"),
+    ])
+    func readableProfileNames(fileName: String, expected: String) {
+        #expect(CanonDriver.displayName(forProfileNamed: fileName) == expected)
+    }
+
     @Test func groupsPaperSizesWithMarginVariants() {
         let a3 = driver.paper("A3")
         #expect(a3?.variants[.standard]?.name == "A3")
