@@ -102,6 +102,16 @@ struct SheetGeometry: Sendable {
         }
     }
 
+    /// Smallest margins this page variant allows, per sheet edge.
+    var minimumMargins: EdgeInsetsMM {
+        EdgeInsetsMM(
+            top: printable.minY,
+            left: printable.minX,
+            bottom: paperSize.height - printable.maxY,
+            right: paperSize.width - printable.maxX
+        )
+    }
+
     /// Content area: user margins, but never outside the printable area.
     func contentRect(margins: EdgeInsetsMM) -> CGRect {
         let wanted = CGRect(

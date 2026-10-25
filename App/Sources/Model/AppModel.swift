@@ -78,6 +78,11 @@ final class AppModel {
 
     var conflicts: [String] { driver?.conflicts(for: sheet.print) ?? [] }
 
+    var marginPlan: CanonDriver.MarginPlan? {
+        driver?.marginPlan(paperID: sheet.print.paperID, mediaID: sheet.print.mediaTypeID,
+                           orientation: sheet.orientation, margins: sheet.layout.margins)
+    }
+
     var selectedCell: Cell? { sheet.cells.first { $0.id == selectedCellID } }
 
     var canPrint: Bool {
@@ -256,6 +261,12 @@ final class AppModel {
     }
 
     private func sheetChanged(from old: Sheet) {
+        // The margins decide the page variant (standard, borderless, fine art).
+        if let plan = marginPlan {
+            var planned = sheet.print
+            planned.apply(plan)
+            if planned != sheet.print { sheet.print = planned }
+        }
         let geometryChanged = old.print.paperID != sheet.print.paperID || old.print.margin != sheet.print.margin
             || old.orientation != sheet.orientation || old.layout != sheet.layout
         if geometryChanged { relayout() }

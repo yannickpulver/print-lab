@@ -125,12 +125,6 @@ private struct PaperSection: View {
                         Text(paper.label).tag(paper.id)
                     }
                 }
-                Picker("Margins", selection: $model.sheet.print.margin) {
-                    ForEach(CanonDriver.Margin.allCases.filter { driver.paper(model.sheet.print.paperID)?.variants[$0] != nil },
-                            id: \.self) { margin in
-                        Text(margin.label).tag(margin)
-                    }
-                }
                 Picker("Orientation", selection: $model.sheet.orientation) {
                     Text("Portrait").tag(Orientation.portrait)
                     Text("Landscape").tag(Orientation.landscape)
@@ -183,6 +177,19 @@ private struct LayoutSection: View {
                 MillimeterField(title: "Gap", value: $model.sheet.layout.gapMM)
             }
             MarginsEditor(margins: $model.sheet.layout.margins)
+            LabeledContent("Printer Mode") {
+                HStack {
+                    Text(model.sheet.print.margin.label)
+                    Button("Borderless") { model.sheet.layout.margins = .all(0) }
+                        .controlSize(.small)
+                        .disabled(model.sheet.layout.margins == .all(0))
+                        .help("Set all margins to 0 mm")
+                }
+            }
+            ForEach(model.marginPlan?.notes ?? [], id: \.self) { note in
+                Label(note, systemImage: "info.circle")
+                    .foregroundStyle(.secondary)
+            }
             Toggle("Captions", isOn: $model.sheet.layout.captions)
             Toggle("Rotate images to fit cells", isOn: $model.sheet.layout.autoRotate)
         }

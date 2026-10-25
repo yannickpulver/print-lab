@@ -48,6 +48,11 @@
 - [x] Banner above the sheet + red toolbar state for printer errors (e.g. 1250 output tray closed)
 - [ ] "Done" comes too early: printer reports the job completed when all data arrived, ~10 min before the paper is out, and says "idle" over IPP while printing. Log Remote UI + IPP during the next print, then show "Printing…" until the paper is out
 
+## Margins
+- [x] Free margins in mm; printer mode follows automatically (Fine Art 25 mm → Standard → Borderless)
+- [x] Fine art below 25 mm: Cancel Margin Regulation + note; borderless without bleed keeps margins exact (extension 0)
+- [ ] Check on paper: borderless with extension 0 keeps margins exact (e.g. Luster, 2 mm)
+
 ## Open
 - [x] First real print over the Wi-Fi queue (Tecco PD190 Duo Matt, A4, 2×2 grid)
 - [ ] Test print vs. Professional Print & Layout on the same paper (manual)

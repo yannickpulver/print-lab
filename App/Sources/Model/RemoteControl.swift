@@ -8,9 +8,9 @@ import Foundation
 ///     open "printlab://configure?clear=1&image=/path/a.tif&image=/path/b.jpg&paper=A3
 ///           &media=Baryta&quality=Super%20Fine&template=grid&rows=1&columns=2&margins=20"
 ///
-/// Keys: queue, clear, image (repeatable), paper, edge (standard|borderless|artMargin), orientation,
+/// Keys: queue, clear, image (repeatable), paper, orientation,
 /// media, quality, source, drying, profile (auto | path | installed file name), template (single|grid|contactSheet), rows, columns, gap, margins,
-/// marginTop, marginLeft, marginBottom, marginRight, captions, autorotate, intent (perceptual|relative),
+/// marginTop, marginLeft, marginBottom, marginRight (the printer mode follows the margins), captions, autorotate, intent (perceptual|relative),
 /// bpc, softproof, paperwhite, fit (fill|fit, all cells), fit.N, turns.N, crop.N (x,y in -1…1),
 /// select (cell index), preset (saved preset name).
 @MainActor
@@ -69,8 +69,7 @@ enum RemoteControl {
                 if let id = match(v, driver.papers.map { ($0.id, $0.label) }) { sheet.print.paperID = id }
                 else { errors.append("paper: no match for \(v)") }
             case "edge":
-                if let edge = CanonDriver.Margin(rawValue: v) { sheet.print.margin = edge }
-                else { errors.append("edge: use standard, borderless or artMargin") }
+                errors.append("edge: the printer mode follows the margins now, set margins instead")
             case "orientation":
                 if let o = Orientation(rawValue: v) { sheet.orientation = o }
                 else { errors.append("orientation: use portrait or landscape") }
@@ -141,9 +140,6 @@ enum RemoteControl {
                     errors.append("unknown key \(item.name)")
                 }
             }
-        }
-        if let paper = driver.paper(sheet.print.paperID), paper.variants[sheet.print.margin] == nil {
-            errors.append("edge: \(sheet.print.margin.rawValue) is not available for \(paper.label)")
         }
         model.sheet = sheet
         model.color = color

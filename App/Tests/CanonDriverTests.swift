@@ -41,6 +41,62 @@ struct CanonDriverTests {
         #expect(driver.cupsOptions(for: settings)["CNIJIntent2"] == "1001")
     }
 
+    // Media ids from the PPD: 63 Photo Paper Pro Luster, 0 Plain Paper, 75 Heavyweight Fine Art Paper.
+
+    @Test func normalMarginsUseStandardPage() {
+        let plan = driver.marginPlan(paperID: "A4", mediaID: "63", orientation: .portrait, margins: .all(15))
+        #expect(plan.margin == .standard)
+        #expect(plan.cancelMarginRegulation == false)
+        #expect(plan.notes.isEmpty)
+    }
+
+    @Test func smallMarginsSwitchToBorderlessWithoutBleed() {
+        // 2 mm is below the standard minimum (3–5 mm) but not 0: keep the margins exact.
+        let plan = driver.marginPlan(paperID: "A4", mediaID: "63", orientation: .portrait, margins: .all(2))
+        #expect(plan.margin == .borderless)
+        #expect(plan.borderlessExtension == "0")
+    }
+
+    @Test func zeroMarginBleedsWithDriverDefault() {
+        var margins = EdgeInsetsMM.all(10)
+        margins.left = 0
+        let plan = driver.marginPlan(paperID: "A4", mediaID: "63", orientation: .portrait, margins: margins)
+        #expect(plan.margin == .borderless)
+        #expect(plan.borderlessExtension == nil)
+    }
+
+    @Test func plainPaperCannotGoBorderless() {
+        let plan = driver.marginPlan(paperID: "A4", mediaID: "0", orientation: .portrait, margins: .all(0))
+        #expect(plan.margin == .standard)
+        #expect(plan.notes.count == 1)
+    }
+
+    @Test func fineArtUsesCanonsArtMarginWhenMarginsAllowIt() {
+        let plan = driver.marginPlan(paperID: "A4", mediaID: "75", orientation: .portrait, margins: .all(25))
+        #expect(plan.margin == .artMargin)
+        #expect(plan.cancelMarginRegulation == false)
+    }
+
+    @Test func fineArtBelow25mmCancelsMarginRegulation() {
+        var settings = driver.defaultSettings()
+        settings.paperID = "A4"
+        settings.mediaTypeID = "75"
+        let plan = driver.marginPlan(paperID: "A4", mediaID: "75", orientation: .portrait, margins: .all(10))
+        settings.apply(plan)
+        #expect(plan.margin == .standard)
+        #expect(plan.notes.count == 1)
+        #expect(driver.cupsOptions(for: settings)["CNIJCancelMarginRegulation"] == "2")
+    }
+
+    @Test func landscapeComparesMarginsOnTheTurnedEdges() {
+        // Fine art 25 mm sits at the portrait top and bottom, which are left and right in landscape.
+        var margins = EdgeInsetsMM.all(10)
+        margins.left = 25
+        margins.right = 25
+        let plan = driver.marginPlan(paperID: "A4", mediaID: "75", orientation: .landscape, margins: margins)
+        #expect(plan.margin == .artMargin)
+    }
+
     @Test func groupsPaperSizesWithMarginVariants() {
         let a3 = driver.paper("A3")
         #expect(a3?.variants[.standard]?.name == "A3")

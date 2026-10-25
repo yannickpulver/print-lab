@@ -62,6 +62,7 @@ struct RemoteState: Encodable, Equatable {
     let cells: [CellInfo]
     let selectedCell: Int?
     let conflicts: [String]
+    let marginNotes: [String]
     let readyToPrint: Bool
     let job: String?
     let lastCommand: CommandResult?
@@ -155,6 +156,7 @@ extension AppModel {
             cells: cells,
             selectedCell: sheet.cells.firstIndex { $0.id == selectedCellID },
             conflicts: conflicts,
+            marginNotes: marginPlan?.notes ?? [],
             readyToPrint: canPrint,
             job: isPreparingJob ? "preparing" : job.map { "\($0.id): \($0.state)" },
             lastCommand: lastCommand,

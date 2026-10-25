@@ -24,9 +24,19 @@ struct CanonDriver: Sendable {
             switch self {
             case .standard: "Standard"
             case .borderless: "Borderless"
-            case .artMargin: "Fine Art margin (25 mm)"
+            case .artMargin: "Fine Art (25 mm)"
             }
         }
+    }
+
+    /// How the driver has to be set up for the margins a person wants.
+    struct MarginPlan: Hashable, Sendable {
+        let margin: Margin
+        /// Lets fine art paper print closer to the edge than Canon's 25 mm.
+        let cancelMarginRegulation: Bool
+        /// Borderless bleed. Nil keeps the driver default; "0" keeps wanted margins exact.
+        let borderlessExtension: String?
+        let notes: [String]
     }
 
     struct Paper: Identifiable, Hashable, Sendable {
@@ -89,6 +99,49 @@ struct CanonDriver: Sendable {
         return profile(for: settings.mediaTypeID)
     }
 
+    /// Canon regulates margins on art papers to 25 mm at top and bottom.
+    func isFineArt(_ mediaID: String) -> Bool {
+        guard let name = mediaType(mediaID)?.name else { return false }
+        return ["Fine Art", "Canvas", "Washi"].contains { name.localizedCaseInsensitiveContains($0) }
+    }
+
+    /// Picks the page variant that allows the wanted margins: Fine Art, else Standard, else Borderless.
+    func marginPlan(paperID: String, mediaID: String, orientation: Orientation, margins: EdgeInsetsMM) -> MarginPlan {
+        guard let paper = paper(paperID) else {
+            return MarginPlan(margin: .standard, cancelMarginRegulation: false, borderlessExtension: nil, notes: [])
+        }
+        func fits(_ margin: Margin) -> Bool {
+            guard let page = paper.variants[margin] else { return false }
+            let minimum = SheetGeometry(pageSize: page, orientation: orientation).minimumMargins
+            let e = 0.05
+            return margins.top >= minimum.top - e && margins.left >= minimum.left - e
+                && margins.bottom >= minimum.bottom - e && margins.right >= minimum.right - e
+        }
+        let fineArt = isFineArt(mediaID)
+        let belowArtMargin = "Below Canon's 25 mm fine art margin: the printer may leave marks near the paper edge."
+
+        if fineArt, fits(.artMargin) {
+            return MarginPlan(margin: .artMargin, cancelMarginRegulation: false, borderlessExtension: nil, notes: [])
+        }
+        if fits(.standard) {
+            return MarginPlan(margin: .standard, cancelMarginRegulation: fineArt, borderlessExtension: nil,
+                              notes: fineArt ? [belowArtMargin] : [])
+        }
+        if let page = paper.variants[.borderless],
+           ppd.conflicts(in: ["PageSize": page.name, "CNIJMediaType": mediaID]).isEmpty {
+            let bleed = min(margins.top, margins.left, margins.bottom, margins.right) < 0.05
+            return MarginPlan(margin: .borderless, cancelMarginRegulation: fineArt,
+                              borderlessExtension: bleed ? nil : "0", notes: fineArt ? [belowArtMargin] : [])
+        }
+        let name = mediaType(mediaID)?.name ?? "this media type"
+        let minimum = paper.variants[.standard].map { SheetGeometry(pageSize: $0, orientation: orientation).minimumMargins }
+        let smallest = minimum.map { String(format: " The smallest margins are %.0f–%.0f mm.",
+                                            min($0.top, $0.left, $0.bottom, $0.right),
+                                            max($0.top, $0.left, $0.bottom, $0.right)) } ?? ""
+        return MarginPlan(margin: .standard, cancelMarginRegulation: fineArt, borderlessExtension: nil,
+                          notes: ["Borderless is not available with \(name).\(smallest)"])
+    }
+
     func pageSize(for settings: PrintSettings) -> PPDFile.PageSize? {
         guard let paper = paper(settings.paperID) else { return nil }
         return paper.variants[settings.margin] ?? paper.variants[.standard] ?? paper.variants.values.first
@@ -109,6 +162,12 @@ struct CanonDriver: Sendable {
         let qualityName = ppd.option("CNIJPrintQuality")?.label(for: settings.qualityID)
         if let slider = ppd.option("CNIJPQualitySlider")?.choices.first(where: { $0.label == qualityName }) {
             options["CNIJPQualitySlider"] = slider.key
+        }
+        if settings.cancelMarginRegulation == true, ppd.option("CNIJCancelMarginRegulation") != nil {
+            options["CNIJCancelMarginRegulation"] = "2"
+        }
+        if settings.margin == .borderless, let amount = settings.borderlessExtensionID {
+            options["CNIJAmountOfExtension"] = amount
         }
         if let source = settings.paperSourceID { options["CNIJMediaSupply"] = source }
         if let drying = settings.dryingTimeID { options["CNIJDryingTimePage"] = drying }
@@ -192,4 +251,13 @@ struct PrintSettings: Codable, Hashable, Sendable {
     var dryingTimeID: String?
     /// Third-party ICC profile, e.g. from the paper maker. Nil uses Canon's profile for the media type.
     var customProfilePath: String?
+    /// Set from the margins, see `CanonDriver.marginPlan`.
+    var cancelMarginRegulation: Bool?
+    var borderlessExtensionID: String?
+
+    mutating func apply(_ plan: CanonDriver.MarginPlan) {
+        margin = plan.margin
+        cancelMarginRegulation = plan.cancelMarginRegulation
+        borderlessExtensionID = plan.borderlessExtension
+    }
 }
