@@ -168,8 +168,14 @@ enum ColorPipeline {
         let source = try xyzValues(of: ends, through: toXYZ)
         let destination = try xyzValues(of: ends, through: transform(target, xyz, intent))
         // v' = (v - source black) / (source white - source black) * (target range) + target black
-        let scale = (0..<3).map { (destination[3 + $0] - destination[$0]) / (source[3 + $0] - source[$0]) }
-        let offset = (0..<3).map { destination[$0] - source[$0] * scale[$0] }
+        var scale = [Float](repeating: 1, count: 3)
+        var offset = [Float](repeating: 0, count: 3)
+        for c in 0..<3 {
+            let targetRange: Float = destination[3 + c] - destination[c]
+            let sourceRange: Float = source[3 + c] - source[c]
+            scale[c] = targetRange / sourceRange
+            offset[c] = destination[c] - source[c] * scale[c]
+        }
 
         // In strips, so a large print does not hold a full float copy of the image.
         let width = image.width
