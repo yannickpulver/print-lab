@@ -406,6 +406,12 @@ final class AppModel {
         didSet { Preferences.presets = presets }
     }
 
+    /// The preset the current settings match exactly, if any.
+    var activePreset: Preset? {
+        presets.first { $0.print == sheet.print && $0.layout == sheet.layout
+            && $0.orientation == sheet.orientation && $0.color == color }
+    }
+
     /// Saves the current settings under a name. A preset with the same name gets replaced.
     func savePreset(named name: String) {
         let preset = makePreset(named: name)

@@ -97,6 +97,14 @@ struct CanonDriverTests {
         #expect(plan.margin == .artMargin)
     }
 
+    @Test func readsMediaTypeFromProfileNames() {
+        #expect(driver.mediaType(forProfileNamed: "TECCO_pro1000_PD190_HWFAP.icc")?.name == "Heavyweight Fine Art Paper")
+        #expect(driver.mediaType(forProfileNamed: "TECCO_pro1000_PPG250_PPPS.icc")?.name == "Photo Paper Plus Semi-gloss")
+        #expect(driver.mediaType(forProfileNamed: "CN_PRO-1000_500_BarytaPhotoPaper-P.icc")?.id == "17448")
+        // Hahnemühle names say nothing about the media type.
+        #expect(driver.mediaType(forProfileNamed: "HFA_CanPro1000_MK_PhotoRag.icc") == nil)
+    }
+
     @Test func groupsPaperSizesWithMarginVariants() {
         let a3 = driver.paper("A3")
         #expect(a3?.variants[.standard]?.name == "A3")

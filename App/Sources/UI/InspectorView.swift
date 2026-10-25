@@ -6,14 +6,15 @@ struct InspectorView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
+                if model.driver != nil { PresetCard() }
                 PrinterCard()
                 if model.driver != nil {
                     PaperCard()
+                    MediaCard()
                     LayoutCard()
                     if model.selectedCell != nil { ImageCard() }
                     ColorCard()
                     PrintCard()
-                    PresetCard()
                 }
             }
             .padding(16)
@@ -264,15 +265,6 @@ private struct PaperCard: View {
                     .pickerStyle(.segmented)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                Row(label: "Media") {
-                    Picker("Media", selection: $model.sheet.print.mediaTypeID) {
-                        ForEach(driver.mediaTypes) { media in
-                            Text(media.name).tag(media.id)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                }
                 if !driver.paperSources.isEmpty {
                     Row(label: "Feed") {
                         Picker("Feed", selection: $model.sheet.print.paperSourceID) {
@@ -286,6 +278,42 @@ private struct PaperCard: View {
                 }
                 ForEach(model.conflicts, id: \.self) { conflict in
                     Hint(icon: "alert-triangle", text: conflict, tint: .orange)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Media
+
+/// Media type and profile belong together: the profile is measured for one media type.
+private struct MediaCard: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var model = model
+        if let driver = model.driver {
+            Card(title: "Media", icon: "droplet") {
+                Row(label: "Type") {
+                    Picker("Media type", selection: $model.sheet.print.mediaTypeID) {
+                        ForEach(driver.mediaTypes) { media in
+                            Text(media.name).tag(media.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                ProfilePicker()
+                if let profile = model.paperProfile,
+                   let expected = driver.mediaType(forProfileNamed: profile.fileName),
+                   expected.id != model.sheet.print.mediaTypeID {
+                    HStack(alignment: .firstTextBaseline) {
+                        Hint(icon: "alert-triangle", text: "This profile was made for \(expected.name).", tint: .orange)
+                        Spacer(minLength: 8)
+                        Button("Use it") { model.sheet.print.mediaTypeID = expected.id }
+                            .buttonStyle(.link)
+                            .font(.callout)
+                    }
                 }
             }
         }
@@ -467,7 +495,6 @@ private struct ColorCard: View {
     var body: some View {
         @Bindable var model = model
         Card(title: "Color", icon: "palette") {
-            ProfilePicker()
             Row(label: "Intent") {
                 Picker("Intent", selection: $model.color.intent) {
                     ForEach(RenderingIntent.allCases, id: \.self) { intent in
@@ -588,46 +615,54 @@ private struct PrintCard: View {
 
 // MARK: - Presets
 
+/// Dropdown on top: shows the preset the settings match, applies, saves and deletes presets.
 private struct PresetCard: View {
     @Environment(AppModel.self) private var model
+    @State private var naming = false
     @State private var newName = ""
 
     var body: some View {
-        Card(title: "Presets", icon: "bookmark") {
-            ForEach(model.presets) { preset in
-                HStack(spacing: 8) {
-                    Button { model.apply(preset) } label: {
-                        Text(preset.name)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+        let active = model.activePreset
+        Card(title: "Preset", icon: "bookmark") {
+            HStack(spacing: 10) {
+                Picker("Preset", selection: Binding(
+                    get: { active?.id },
+                    set: { id in if let preset = model.presets.first(where: { $0.id == id }) { model.apply(preset) } }
+                )) {
+                    if active == nil {
+                        Text("Custom settings").tag(UUID?.none)
+                        Divider()
                     }
-                    .buttonStyle(.link)
-                    .help("Apply \(preset.name)")
-                    Spacer()
-                    Button {
-                        model.presets.removeAll { $0.id == preset.id }
-                    } label: { TablerIcon("trash", size: 14) }
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(.secondary)
-                        .help("Delete preset")
+                    ForEach(model.presets) { preset in
+                        Text(preset.name).tag(Optional(preset.id))
+                    }
                 }
-            }
-            HStack(spacing: 8) {
-                TextField("Save current settings as…", text: $newName)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(save)
-                Button(action: save) { TablerIcon("plus", size: 14) }
-                    .help("Save preset")
-                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                Button {
+                    newName = ""
+                    naming = true
+                } label: { TablerIcon("plus", size: 15) }
+                    .buttonStyle(.borderless)
+                    .help("Save the current settings as a new preset")
+                Button {
+                    model.presets.removeAll { $0.id == active?.id }
+                } label: { TablerIcon("trash", size: 15) }
+                    .buttonStyle(.borderless)
+                    .disabled(active == nil)
+                    .help(active.map { "Delete \($0.name)" } ?? "Choose a preset to delete it")
             }
         }
-    }
-
-    private func save() {
-        guard !newName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        model.savePreset(named: newName)
-        newName = ""
+        .alert("Save Preset", isPresented: $naming) {
+            TextField("Name", text: $newName)
+            Button("Save") {
+                let name = newName.trimmingCharacters(in: .whitespaces)
+                if !name.isEmpty { model.savePreset(named: name) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Saves paper, media, profile, layout and color settings. Images are not part of a preset.")
+        }
     }
 }
 

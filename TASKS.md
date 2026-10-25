@@ -66,6 +66,8 @@
 
 ## UI
 - [x] Print confirmation dialog with a summary, no print button in the toolbar
+- [x] Presets as a dropdown on top (active preset, save as new, delete)
+- [x] Media card: media type + profile together, hint when the profile name points to another media type
 - [x] Inspector as cards with Tabler icons (MIT, App/Resources/TABLER-LICENSE.txt), fixed label column, more spacing
 
 ## Open

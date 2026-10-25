@@ -196,6 +196,36 @@ struct CanonDriver: Sendable {
         )
     }
 
+    /// Short codes paper makers put into profile names for the Canon media type they profiled with,
+    /// e.g. TECCO_pro1000_PD190_HWFAP.icc.
+    static let mediaCodes: [String: String] = [
+        "HWFAP": "Heavyweight Fine Art Paper",
+        "EHWFAP": "Extra Heavyweight Fine Art Paper",
+        "HDFAP": "Highest Density Fine Art Paper",
+        "PFAS": "Premium Fine Art Smooth",
+        "MPP": "Matte Photo Paper",
+        "PPPS": "Photo Paper Plus Semi-gloss",
+        "PPPG2": "Photo Paper Plus Glossy II",
+        "PPPL": "Photo Paper Pro Luster",
+        "PPPP": "Photo Paper Pro Platinum",
+        "BPP": "Baryta Photo Paper",
+        "HWPP": "Heavyweight Photo Paper",
+        "LWPP": "Lightweight Photo Paper",
+    ]
+
+    /// Media type a profile was made for, read from its file name. Nil when the name does not say.
+    func mediaType(forProfileNamed fileName: String) -> MediaType? {
+        if let canon = mediaTypes.first(where: { $0.profile?.fileName == fileName }) { return canon }
+        let base = (fileName as NSString).deletingPathExtension
+        let tokens = base.split(whereSeparator: { $0 == "_" || $0 == "-" || $0 == " " }).map { $0.uppercased() }
+        for token in tokens.reversed() {
+            if let name = Self.mediaCodes[token], let media = mediaTypes.first(where: { $0.name == name }) {
+                return media
+            }
+        }
+        return nil
+    }
+
     // MARK: - Mapping helpers
 
     /// Matches "Photo Paper Pro Luster" to "CN_PRO-1000_500_PhotoPaperProLuster.icc".
