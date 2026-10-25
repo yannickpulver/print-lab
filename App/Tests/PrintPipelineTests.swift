@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import ImageIO
 import Testing
-@testable import CanonPrintLab
+@testable import PrintLab
 
 /// End to end without paper: the app's PDF runs through macOS's own PDF-to-raster filter with the Canon
 /// driver options. The raster that would go to Canon's driver must hold exactly the paper-profile values

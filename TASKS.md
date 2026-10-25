@@ -1,10 +1,10 @@
-# Canon Print Lab – Tasks
+# Print Lab – Tasks
 
 ## Setup
 - [x] Color path verified without paper: pixels tagged sRGB pass macOS + Canon filter chain bit-exact (16-bit)
 - [x] Tuist project, macOS 26, Swift 6, tests target
 - [x] README, LICENSE (MIT), .gitignore
-- [x] Canon driver queue (`Canon_PRO_1000_series_4`) switched from USB to `ipp://192.168.1.175/ipp/print`, renamed "Canon PRO-1000 (Canon-Treiber, WLAN)"
+- [x] Canon driver queue pointed at the printer over Wi-Fi (`ipp://<printer-ip>/ipp/print`, fixed IP via DHCP reservation)
 
 ## Printer
 - [x] PPD parser: options, page sizes (dimension + imageable area), UIConstraints, cupsICCProfile
@@ -34,7 +34,7 @@
 - [x] Presets (save/load settings)
 
 ## Remote control
-- [x] `canonprintlab://configure?…` sets images, paper, media, quality, layout, color, per-cell fit/turns/crop
+- [x] `printlab://configure?…` sets images, paper, media, quality, layout, color, per-cell fit/turns/crop
 - [x] `state.json` in Application Support with settings, cells, conflicts, printer status, option lists, last command errors
 - [x] No print command on purpose: printing is a button press
 
@@ -49,10 +49,10 @@
 - [ ] "Done" comes too early: printer reports the job completed when all data arrived, ~10 min before the paper is out, and says "idle" over IPP while printing. Log Remote UI + IPP during the next print, then show "Printing…" until the paper is out
 
 ## Open
-- [ ] First real print over the new WLAN queue (needs Yannick + paper)
-- [ ] Test print vs. Professional Print & Layout on the same paper (needs Yannick)
+- [x] First real print over the Wi-Fi queue (Tecco PD190 Duo Matt, A4, 2×2 grid)
+- [ ] Test print vs. Professional Print & Layout on the same paper (manual)
 - [ ] Gamut warning in softproof
 - [ ] Multiple sheets per document, save/open layouts
 - [ ] Free cell positioning (drag/resize cells)
 - [ ] German localization
-- [ ] Rename before publishing (trademark)
+- [x] Rename before publishing (trademark): now "Print Lab"

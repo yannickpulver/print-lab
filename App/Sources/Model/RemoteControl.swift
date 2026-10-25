@@ -1,11 +1,11 @@
 import Foundation
 
-/// Lets scripts set up a sheet via `canonprintlab://configure?…` and read the result from `state.json`.
+/// Lets scripts set up a sheet via `printlab://configure?…` and read the result from `state.json`.
 /// There is deliberately no print command: a person presses Print.
 ///
 /// Values match by id or by name (case-insensitive, exact first, then "contains"):
 ///
-///     open "canonprintlab://configure?clear=1&image=/path/a.tif&image=/path/b.jpg&paper=A3
+///     open "printlab://configure?clear=1&image=/path/a.tif&image=/path/b.jpg&paper=A3
 ///           &media=Baryta&quality=Super%20Fine&template=grid&rows=1&columns=2&margins=20"
 ///
 /// Keys: queue, clear, image (repeatable), paper, edge (standard|borderless|artMargin), orientation,
@@ -15,11 +15,11 @@ import Foundation
 /// select (cell index), preset (saved preset name).
 @MainActor
 enum RemoteControl {
-    static let scheme = "canonprintlab"
+    static let scheme = "printlab"
 
     static var stateURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("CanonPrintLab/state.json")
+        return base.appendingPathComponent("PrintLab/state.json")
     }
 
     static func handle(_ url: URL, model: AppModel) {

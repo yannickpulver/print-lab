@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import CanonPrintLab
+@testable import PrintLab
 
 /// Runs against the Canon PPD installed on this Mac. Skipped elsewhere.
 @Suite(.enabled(if: TestSupport.canonPPD != nil))

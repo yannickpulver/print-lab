@@ -62,7 +62,7 @@ enum PrintJob {
     /// Builds the PDF and hands it to CUPS. Returns the job id.
     static func submit(_ request: PrintRequest) throws -> Int32 {
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("canon-print-lab-\(UUID().uuidString).pdf")
+            .appendingPathComponent("print-lab-\(UUID().uuidString).pdf")
         defer { try? FileManager.default.removeItem(at: url) }
         try makePDF(request, to: url)
         // CUPS copies the file into its spool, so the temporary PDF can go right after.

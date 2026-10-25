@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import CanonPrintLab
+@testable import PrintLab
 
 /// Snippets in the format of the PRO-1000's Remote UI (firmware 4.000).
 struct RemoteUIStatusTests {

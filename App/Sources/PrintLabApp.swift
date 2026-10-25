@@ -1,12 +1,12 @@
 import SwiftUI
 
 @main
-struct CanonPrintLabApp: App {
+struct PrintLabApp: App {
     @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
     @State private var model = AppModel()
 
     var body: some Scene {
-        Window("Canon Print Lab", id: "main") {
+        Window("Print Lab", id: "main") {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 1000, minHeight: 650)
@@ -26,7 +26,7 @@ struct CanonPrintLabApp: App {
     }
 }
 
-/// Receives files opened from Finder or dropped on the Dock icon, and `canonprintlab://` commands.
+/// Receives files opened from Finder or dropped on the Dock icon, and `printlab://` commands.
 /// SwiftUI's `onOpenURL` only gets the first URL.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {

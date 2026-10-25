@@ -1,6 +1,6 @@
 import CoreGraphics
 import Testing
-@testable import CanonPrintLab
+@testable import PrintLab
 
 struct PPDFileTests {
     static let sample = """

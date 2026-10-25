@@ -2,7 +2,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import CanonPrintLab
+@testable import PrintLab
 
 struct ColorPipelineTests {
     let srgb = ColorPipeline.profile(of: CGColorSpace(name: CGColorSpace.sRGB)!)!

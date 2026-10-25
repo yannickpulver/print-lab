@@ -46,7 +46,7 @@ final class AppModel {
     var selectedCellID: UUID?
     var showImporter = false
     var errorMessage: String?
-    /// Result of the last `canonprintlab://` command, written to the state file.
+    /// Result of the last `printlab://` command, written to the state file.
     var lastCommand: CommandResult?
 
     private(set) var status = PrinterStatus()
@@ -315,7 +315,7 @@ final class AppModel {
             sheet: sheet, queue: queue, driver: driver, color: color,
             sources: Dictionary(uniqueKeysWithValues: library.map { ($0.id, $0.url) }),
             captions: Dictionary(uniqueKeysWithValues: library.map { ($0.id, $0.name) }),
-            title: library.first { item in sheet.cells.contains { $0.imageID == item.id } }?.name ?? "Canon Print Lab"
+            title: library.first { item in sheet.cells.contains { $0.imageID == item.id } }?.name ?? "Print Lab"
         )
         isPreparingJob = true
         Task.detached(priority: .userInitiated) {

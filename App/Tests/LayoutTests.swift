@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import CanonPrintLab
+@testable import PrintLab
 
 struct LayoutTests {
     /// A4 with 3.4 mm side margins, 5 mm bottom, 5 mm top (in points).
