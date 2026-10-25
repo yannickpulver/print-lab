@@ -1,10 +1,8 @@
-<img src="docs/icon.png" width="64" alt="Print Lab icon">
-
 # Print Lab
 
-A macOS app for printing photos on Canon photo printers, tested on the imagePROGRAF PRO-1000. An open alternative to Canon's Professional Print & Layout.
+A macOS app for printing photos on Canon photo printers. An open alternative to Canon's Professional Print & Layout.
 
-![Print Lab with a 2×2 grid on A4 Fine Art paper](docs/screenshot.png)
+![Print Lab with a sunset photo on A4 Hahnemühle Photo Rag](docs/screenshot.png)
 
 - **Layouts:** one image per sheet, grids, contact sheets with captions. Drag to move the crop, drop images onto cells.
 - **Color:** 16-bit conversion into the paper profile, softproof with paper white. Canon's profiles per media type, or the paper maker's own (e.g. Tecco, Hahnemühle).
@@ -22,7 +20,7 @@ brew install yannickpulver/tap/print-lab
 
 Print Lab needs Canon's IJ driver for your printer and the printer added in System Settings → Printers & Scanners.
 
-Print Lab is tested on the PRO-1000. Other Canon printers with the IJ driver (e.g. PRO-300, PRO-200) show up too and get paper sizes, media types and quality from their own driver. Canon's paper profiles are matched by their PRO-1000 file names so far; with another printer, choose the profile in the Paper card.
+Besides the PRO-1000, other Canon printers with the IJ driver (e.g. PRO-300, PRO-200) show up and get paper sizes, media types and quality from their own driver. Canon's paper profiles are matched by their PRO-1000 file names so far; with another printer, choose the profile in the Paper card.
 
 ## How colors flow
 
@@ -86,6 +84,10 @@ The release needs GitHub secrets for signing, notarization, Sparkle and the tap.
 | `App/Sources/Layout` | Sheet model, templates (single, grid, contact sheet) |
 | `App/Sources/Print` | Shared drawing for preview and PDF, print job |
 | `App/Sources/UI` | SwiftUI views |
+
+## Tested on
+
+- Canon imagePROGRAF PRO-1000 over Wi-Fi, macOS 27
 
 ## License
 
