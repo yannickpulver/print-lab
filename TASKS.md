@@ -62,7 +62,7 @@
 - [x] Local check: Sparkle helpers sign inside-out, app verifies, sign_update signs the zip with the keychain key
 - [x] `scripts/setup-release-secrets.sh`: wizard that sets all secrets and checks each value
 - [x] Repo secrets set (APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_PASSWORD, HOMEBREW_TAP_TOKEN, SPARKLE_PRIVATE_KEY; APPLE_TEAM_ID is set)
-- [ ] First release v0.1.0 through CI, then `brew install yannickpulver/tap/print-lab`
+- [x] First release v0.1.0 through CI, `brew install yannickpulver/tap/print-lab` works (notarized, Gatekeeper accepts)
 
 ## Open
 - [x] First real print over the Wi-Fi queue (Tecco PD190 Duo Matt, A4, 2×2 grid)
