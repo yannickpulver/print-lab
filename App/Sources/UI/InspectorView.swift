@@ -384,19 +384,17 @@ private struct PrintSection: View {
 
 private struct PresetSection: View {
     @Environment(AppModel.self) private var model
-    @State private var presets = Preferences.presets
     @State private var newName = ""
 
     var body: some View {
         Section("Presets") {
-            ForEach(presets) { preset in
+            ForEach(model.presets) { preset in
                 HStack {
                     Button(preset.name) { model.apply(preset) }
                         .buttonStyle(.link)
                     Spacer()
                     Button {
-                        presets.removeAll { $0.id == preset.id }
-                        Preferences.presets = presets
+                        model.presets.removeAll { $0.id == preset.id }
                     } label: { Image(systemName: "trash") }
                         .buttonStyle(.borderless)
                         .help("Delete preset")
@@ -406,8 +404,7 @@ private struct PresetSection: View {
                 TextField("New preset name", text: $newName)
                     .textFieldStyle(.roundedBorder)
                 Button("Save") {
-                    presets.append(model.makePreset(named: newName))
-                    Preferences.presets = presets
+                    model.savePreset(named: newName)
                     newName = ""
                 }
                 .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)

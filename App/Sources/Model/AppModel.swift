@@ -354,6 +354,21 @@ final class AppModel {
 
     // MARK: - Presets & preferences
 
+    var presets: [Preset] = Preferences.presets {
+        didSet { Preferences.presets = presets }
+    }
+
+    /// Saves the current settings under a name. A preset with the same name gets replaced.
+    func savePreset(named name: String) {
+        let preset = makePreset(named: name)
+        if let index = presets.firstIndex(where: { $0.name.localizedCaseInsensitiveCompare(preset.name) == .orderedSame }) {
+            presets[index] = Preset(id: presets[index].id, name: preset.name, print: preset.print,
+                                    layout: preset.layout, orientation: preset.orientation, color: preset.color)
+        } else {
+            presets.append(preset)
+        }
+    }
+
     func makePreset(named name: String) -> Preset {
         Preset(name: name.trimmingCharacters(in: .whitespaces), print: sheet.print, layout: sheet.layout,
                orientation: sheet.orientation, color: color)

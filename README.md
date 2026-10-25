@@ -12,6 +12,14 @@ A macOS app for printing photos on the Canon imagePROGRAF PRO-1000. An open alte
 
 Print Lab is not affiliated with Canon.
 
+## Install
+
+```
+brew install yannickpulver/tap/print-lab
+```
+
+Print Lab needs Canon's IJ driver for the PRO-1000 and the printer added in System Settings → Printers & Scanners.
+
 ## How colors flow
 
 ```
@@ -49,6 +57,18 @@ tuist generate
 xcodebuild -workspace PrintLab.xcworkspace -scheme PrintLab build
 xcodebuild -workspace PrintLab.xcworkspace -scheme PrintLab test
 ```
+
+## Release
+
+The version lives in `VERSION`. Bump it and push to `main`:
+
+```
+push to main with a new VERSION
+  → GitHub Actions: test, build, sign (Developer ID), notarize, release Print-Lab.zip
+  → homebrew-tap: Casks/print-lab.rb gets the new version and checksum
+```
+
+A version that is already released is not built again.
 
 ## Layout
 

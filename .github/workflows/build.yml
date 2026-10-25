@@ -1,0 +1,123 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-26
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+
+      - name: Install Tuist
+        run: |
+          brew tap tuist/tuist
+          brew trust tuist/tuist
+          brew install --formula tuist
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(cat VERSION)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # A published version is never rebuilt: its zip and the cask checksum stay valid.
+          if [ "${{ github.event_name }}" = "push" ] && ! git ls-remote --exit-code --tags origin "v$VERSION" >/dev/null; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate project
+        run: tuist generate --no-open
+
+      - name: Test
+        run: xcodebuild -project PrintLab.xcodeproj -scheme PrintLab -derivedDataPath build test
+
+      - name: Build app
+        run: |
+          xcodebuild -project PrintLab.xcodeproj -scheme PrintLab -configuration Release \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} build
+          # The Xcode product is PrintLab.app; the cask and the zip ship "Print Lab.app".
+          mkdir -p dist
+          ditto build/Build/Products/Release/PrintLab.app "dist/Print Lab.app"
+
+      - name: Import certificate
+        if: steps.version.outputs.release == 'true'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+          rm certificate.p12
+
+      - name: Sign app
+        if: steps.version.outputs.release == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP="dist/Print Lab.app"
+          codesign --force --options runtime --timestamp \
+            --sign "Developer ID Application: Yannick Pulver ($APPLE_TEAM_ID)" "$APP"
+          codesign --verify --deep --strict "$APP"
+
+      - name: Notarize app
+        if: steps.version.outputs.release == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          ditto -c -k --keepParent "dist/Print Lab.app" "dist/Print-Lab.zip"
+          OUTPUT=$(xcrun notarytool submit "dist/Print-Lab.zip" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" \
+            --wait 2>&1)
+          echo "$OUTPUT"
+          if ! echo "$OUTPUT" | grep -q "status: Accepted"; then
+            SUBMISSION_ID=$(echo "$OUTPUT" | grep "id:" | head -1 | awk '{print $2}')
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" || true
+            exit 1
+          fi
+
+      - name: Staple and zip
+        if: steps.version.outputs.release == 'true'
+        run: |
+          xcrun stapler staple "dist/Print Lab.app"
+          rm dist/Print-Lab.zip
+          ditto -c -k --keepParent "dist/Print Lab.app" "dist/Print-Lab.zip"
+
+      - name: Create release
+        if: steps.version.outputs.release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Print Lab ${{ steps.version.outputs.version }}
+          files: dist/Print-Lab.zip
+          generate_release_notes: true
+
+  update-homebrew:
+    needs: build
+    if: needs.build.outputs.release == 'true'
+    uses: ./.github/workflows/update-homebrew-tap.yml
+    with:
+      tag: v${{ needs.build.outputs.version }}
+    secrets:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

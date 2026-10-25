@@ -166,6 +166,7 @@ extension AppModel {
                 "source": driver?.paperSources.map { RemoteState.Option(id: $0.id, name: $0.name) } ?? [],
                 "drying": driver?.dryingTimes.map { RemoteState.Option(id: $0.id, name: $0.name) } ?? [],
                 "queue": queues.map { RemoteState.Option(id: $0.name, name: $0.info) },
+                "preset": presets.map { RemoteState.Option(id: $0.id.uuidString, name: $0.name) },
                 "profile": ProfileLibrary.printerProfiles().map { RemoteState.Option(id: $0.url.path, name: $0.fileName) },
             ],
             papers: driver?.papers.map { p in

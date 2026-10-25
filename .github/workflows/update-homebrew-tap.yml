@@ -1,0 +1,81 @@
+name: Update Homebrew Tap
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0)"
+        required: true
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0)"
+        required: true
+        type: string
+    secrets:
+      HOMEBREW_TAP_TOKEN:
+        required: true
+
+jobs:
+  update-cask:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag and version
+        id: ver
+        run: |
+          TAG="${{ inputs.tag }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download asset and compute sha256
+        id: sha
+        run: |
+          URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.ver.outputs.tag }}/Print-Lab.zip"
+          curl -fsSL -o asset.zip "$URL"
+          echo "sha256=$(sha256sum asset.zip | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tap
+        uses: actions/checkout@v4
+        with:
+          repository: yannickpulver/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Write cask
+        run: |
+          cat > tap/Casks/print-lab.rb <<EOF
+          cask "print-lab" do
+            version "${{ steps.ver.outputs.version }}"
+            sha256 "${{ steps.sha.outputs.sha256 }}"
+
+            url "https://github.com/yannickpulver/print-lab/releases/download/v#{version}/Print-Lab.zip"
+            name "Print Lab"
+            desc "Photo printing for the Canon imagePROGRAF PRO-1000"
+            homepage "https://github.com/yannickpulver/print-lab"
+
+            depends_on macos: ">= :tahoe"
+
+            app "Print Lab.app"
+
+            zap trash: [
+              "~/Library/Preferences/com.yannickpulver.PrintLab.plist",
+              "~/Library/Application Support/PrintLab",
+            ]
+
+            caveats <<~CAVEATS
+              Print Lab prints through Canon's IJ driver for the PRO-1000.
+              Install it from Canon's support site and add the printer in
+              System Settings → Printers & Scanners.
+            CAVEATS
+          end
+          EOF
+
+      - name: Commit and push
+        run: |
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/print-lab.rb
+          git diff --cached --quiet && exit 0
+          git commit -m "print-lab ${{ steps.ver.outputs.version }}"
+          git push

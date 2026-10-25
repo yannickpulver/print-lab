@@ -12,7 +12,7 @@ import Foundation
 /// media, quality, source, drying, profile (auto | path | installed file name), template (single|grid|contactSheet), rows, columns, gap, margins,
 /// marginTop, marginLeft, marginBottom, marginRight (the printer mode follows the margins), captions, autorotate, intent (perceptual|relative),
 /// bpc, softproof, paperwhite, fit (fill|fit, all cells), fit.N, turns.N, crop.N (x,y in -1…1),
-/// select (cell index), preset (saved preset name).
+/// select (cell index), preset (saved preset name), savePreset (saves the result under a name).
 @MainActor
 enum RemoteControl {
     static let scheme = "printlab"
@@ -43,7 +43,7 @@ enum RemoteControl {
             }
         }
         if let preset = items.first(where: { $0.name == "preset" }).map(value) {
-            if let match = Preferences.presets.first(where: { $0.name.localizedCaseInsensitiveCompare(preset) == .orderedSame }) {
+            if let match = model.presets.first(where: { $0.name.localizedCaseInsensitiveCompare(preset) == .orderedSame }) {
                 model.apply(match)
             } else {
                 errors.append("preset: no preset named \(preset)")
@@ -59,7 +59,7 @@ enum RemoteControl {
         for item in items {
             let v = value(item)
             switch item.name {
-            case "queue", "preset":
+            case "queue", "preset", "savePreset":
                 continue
             case "clear":
                 if bool(v) == true { model.clearLibrary() }
@@ -147,8 +147,12 @@ enum RemoteControl {
         let result = CommandResult(url: url.absoluteString, errors: errors)
         model.lastCommand = result
         // Cell edits wait for the images, because placing an image resets rotation and crop.
+        let presetName = items.first(where: { $0.name == "savePreset" }).map(value)
         model.addImages(images) {
             let cellErrors = applyCellEdits(cellEdits, model: model)
+            if let presetName, !presetName.trimmingCharacters(in: .whitespaces).isEmpty {
+                model.savePreset(named: presetName)
+            }
             model.lastCommand = CommandResult(url: result.url, errors: result.errors + cellErrors)
         }
     }

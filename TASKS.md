@@ -53,6 +53,14 @@
 - [x] Fine art below 25 mm: Cancel Margin Regulation + note; borderless without bleed keeps margins exact (extension 0)
 - [ ] Check on paper: borderless with extension 0 keeps margins exact (e.g. Luster, 2 mm)
 
+## Distribution
+- [x] `VERSION` file as single source, CI build number as CFBundleVersion
+- [x] GitHub Actions: test, build, Developer ID signing, notarization, release zip (only for new versions)
+- [x] Tap workflow writes `Casks/print-lab.rb` in yannickpulver/homebrew-tap
+- [x] Local check: Release build signs with Developer ID + hardened runtime, cask Ruby syntax OK, actionlint clean
+- [ ] Repo secrets set (APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_TEAM_ID, APPLE_ID, APPLE_APP_PASSWORD, HOMEBREW_TAP_TOKEN)
+- [ ] First release v0.1.0 through CI, then `brew install yannickpulver/tap/print-lab`
+
 ## Open
 - [x] First real print over the Wi-Fi queue (Tecco PD190 Duo Matt, A4, 2×2 grid)
 - [ ] Test print vs. Professional Print & Layout on the same paper (manual)
