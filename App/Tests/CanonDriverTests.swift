@@ -119,6 +119,8 @@ struct CanonDriverTests {
     @Test(arguments: [
         ("CN_PRO-1000_500_HighestDensityFineArtPaper-P.icc", "Canon Highest Density Fine Art Paper"),
         ("CN_PRO-1000_500_PhotoPaperProLuster.icc", "Canon Photo Paper Pro Luster"),
+        ("CN_PRO-200_S1_HeavyweightFineArtPaper-P.icc", "Canon Heavyweight Fine Art Paper"),
+        ("CN_PRO-200S_S1MkII_PhotoPaperPlusSemi-gloss.icc", "Canon Photo Paper Plus Semi-gloss"),
         ("HFA_CanPro1000_MK_PhotoRag.icc", "Hahnemühle Photo Rag (MK)"),
         ("Hanemuehle_CanPro1000_PK_FAPearl_BarytaSetting_BarytaPapier.icc", "Hahnemühle FA Pearl Baryta Setting Baryta Papier (PK)"),
         ("TECCO_pro1000_PD190_HWFAP.icc", "Tecco PD190"),
@@ -158,6 +160,38 @@ struct CanonDriverTests {
         #expect(driver.conflicts(for: settings).count == 1)
         settings.mediaTypeID = "17448"
         #expect(driver.conflicts(for: settings).isEmpty)
+    }
+}
+
+/// Profile names from Canon's PRO-200 driver (30.10.1.0): other printers use other prefixes.
+struct CanonProfileNameTests {
+    let profiles = [
+        "CN_IJPrinter_Profile2015.icc",
+        "CN_PRO-200_S1_PhotoPaperPlusGlossyIIA.icc",
+        "CN_PRO-200_S1_PhotoPaperProLuster.icc",
+        "CN_PRO-200_S1_PhotoPaperPlusSemi-gloss.icc",
+        "CN_PRO-200_S1_HeavyweightFineArtPaper-P.icc",
+        "CN_PRO-200_S1_ExtraHeavyweightFineArtPaper-P.icc",
+        "CN_PRO-200_S1_Canvas-P.icc",
+    ].enumerated().map { index, name in
+        CanonDriver.PaperProfile(profileID: "\(index + 1)", fileName: name, url: URL(fileURLWithPath: "/" + name))
+    }
+
+    @Test(arguments: [
+        ("Photo Paper Plus Glossy II A", "CN_PRO-200_S1_PhotoPaperPlusGlossyIIA.icc"),
+        ("Photo Paper Pro Luster", "CN_PRO-200_S1_PhotoPaperProLuster.icc"),
+        ("Photo Paper Plus Semi-gloss", "CN_PRO-200_S1_PhotoPaperPlusSemi-gloss.icc"),
+        ("Heavyweight Fine Art Paper", "CN_PRO-200_S1_HeavyweightFineArtPaper-P.icc"),
+        ("Extra Heavyweight Fine Art Paper", "CN_PRO-200_S1_ExtraHeavyweightFineArtPaper-P.icc"),
+        ("Canvas", "CN_PRO-200_S1_Canvas-P.icc"),
+    ])
+    func mapsMediaToProfile(media: String, fileName: String) {
+        #expect(CanonDriver.profile(forMedia: media, in: profiles)?.fileName == fileName)
+    }
+
+    @Test func plainPaperHasNoProfile() {
+        #expect(CanonDriver.profile(forMedia: "Plain Paper", in: profiles) == nil)
+        #expect(CanonDriver.canonMediaName(ofProfileNamed: "CN_IJPrinter_Profile2015.icc") == nil)
     }
 }
 

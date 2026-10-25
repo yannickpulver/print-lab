@@ -20,7 +20,7 @@ struct SheetCanvasView: View {
                 ContentUnavailableView {
                     Label { Text("No Canon Printer") } icon: { TablerIcon("printer", size: 40) }
                 } description: {
-                    Text("Add the PRO-1000 with Canon's driver in System Settings → Printers & Scanners.")
+                    Text("Add your Canon printer with Canon's driver in System Settings → Printers & Scanners.")
                 }
             }
         }

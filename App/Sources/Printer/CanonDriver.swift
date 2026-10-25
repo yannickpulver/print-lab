@@ -53,7 +53,6 @@ struct CanonDriver: Sendable {
     }
 
     static let noColorCorrection = "1001"
-    static let profilePrefix = "CN_PRO-1000_500_"
 
     let ppd: PPDFile
     let mediaTypes: [MediaType]
@@ -71,10 +70,11 @@ struct CanonDriver: Sendable {
             guard let path = ppd.iccProfiles[choice.label] else { return nil }
             return PaperProfile(profileID: choice.key, fileName: choice.label, url: URL(fileURLWithPath: path))
         }
-        genericProfile = profiles.first { !$0.fileName.hasPrefix(Self.profilePrefix) }
-        mediaTypes = media.choices.map { choice in
+        let mediaTypes = media.choices.map { choice in
             MediaType(id: choice.key, name: choice.label, profile: Self.profile(forMedia: choice.label, in: profiles))
         }
+        self.mediaTypes = mediaTypes
+        genericProfile = profiles.first { profile in !mediaTypes.contains { $0.profile == profile } }
         papers = Self.groupPapers(ppd.pageSizes)
         qualities = (ppd.option("CNIJPrintQuality")?.choices ?? []).map { Choice(id: $0.key, name: $0.label) }
         paperSources = (ppd.option("CNIJMediaSupply")?.choices ?? []).map { Choice(id: $0.key, name: $0.label) }
@@ -247,12 +247,8 @@ struct CanonDriver: Sendable {
     /// "HFA_CanPro1000_MK_PhotoRag.icc" → "Hahnemühle Photo Rag (MK)",
     /// "CN_PRO-1000_500_PhotoPaperProLuster.icc" → "Canon Photo Paper Pro Luster".
     static func displayName(forProfileNamed fileName: String) -> String {
-        var base = (fileName as NSString).deletingPathExtension
-        if base.hasPrefix(profilePrefix) {
-            base.removeFirst(profilePrefix.count)
-            if base.hasSuffix("-P") { base.removeLast(2) }
-            return "Canon " + spaced(base)
-        }
+        if let media = canonMediaName(ofProfileNamed: fileName) { return "Canon " + spaced(media) }
+        let base = (fileName as NSString).deletingPathExtension
         let printerTokens: Set<String> = ["CAN", "PRO", "CANPRO", "1000", "PRO1000", "CANPRO1000"]
         var maker: String?
         var ink: String?
@@ -305,13 +301,17 @@ struct CanonDriver: Sendable {
     /// Matches "Photo Paper Pro Luster" to "CN_PRO-1000_500_PhotoPaperProLuster.icc".
     static func profile(forMedia name: String, in profiles: [PaperProfile]) -> PaperProfile? {
         let wanted = normalized(name)
-        return profiles.first { profile in
-            guard profile.fileName.hasPrefix(profilePrefix) else { return false }
-            var base = String(profile.fileName.dropFirst(profilePrefix.count))
-            base = base.replacingOccurrences(of: ".icc", with: "")
-            if base.hasSuffix("-P") { base.removeLast(2) }
-            return normalized(base) == wanted
-        }
+        return profiles.first { canonMediaName(ofProfileNamed: $0.fileName).map(normalized) == wanted }
+    }
+
+    /// Media part of Canon's paper profile names: printer, ink set, then media.
+    /// "CN_PRO-1000_500_Canvas-P.icc", "CN_PRO-200_S1_Canvas-P.icc", "CN_PRO-200S_S1MkII_Canvas-P.icc" → "Canvas".
+    /// Nil for other profiles, e.g. Canon's generic "CN_IJPrinter_Profile2015.icc".
+    static func canonMediaName(ofProfileNamed fileName: String) -> String? {
+        let parts = (fileName as NSString).deletingPathExtension.split(separator: "_")
+        guard parts.count >= 4, parts[0] == "CN", var media = parts.last.map(String.init) else { return nil }
+        if media.hasSuffix("-P") { media.removeLast(2) }
+        return media
     }
 
     private static func normalized(_ s: String) -> String {
