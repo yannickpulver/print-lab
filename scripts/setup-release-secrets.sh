@@ -278,12 +278,21 @@ pause
 # ── 4 · Homebrew tap token ───────────────────────────────────────────────
 stage "Homebrew tap token"
 say "After a release, CI writes Casks/print-lab.rb into $TAP."
-open_url "https://github.com/settings/personal-access-tokens/new"
-step "Token name 'print-lab tap', expiration as you like."
-step "Repository access → Only select repositories → $TAP."
-step "Permissions → Repository → Contents: Read and write. Generate, copy."
+# The same token serves all apps in the tap; it lives in 1Password.
+OP_REF="op://Personal/Homebrew Tap Github PAT Token/password"
+HOMEBREW_TAP_TOKEN=""
+if command -v op >/dev/null 2>&1 && confirm "Use the shared tap token from 1Password?"; then
+  HOMEBREW_TAP_TOKEN=$(op read "$OP_REF" 2>/dev/null || true)
+  [[ -z "$HOMEBREW_TAP_TOKEN" ]] && warn "Could not read $OP_REF — create a new token instead."
+fi
+if [[ -z "$HOMEBREW_TAP_TOKEN" ]]; then
+  open_url "https://github.com/settings/personal-access-tokens/new"
+  step "Token name 'homebrew tap', expiration as you like."
+  step "Repository access → Only select repositories → $TAP."
+  step "Permissions → Repository → Contents: Read and write. Generate, copy."
+fi
 while true; do
-  ask_secret HOMEBREW_TAP_TOKEN "Paste the token (github_pat_…):"
+  [[ -z "$HOMEBREW_TAP_TOKEN" ]] && ask_secret HOMEBREW_TAP_TOKEN "Paste the token (github_pat_…):"
   # GitHub reports the owner's rights here, not the token's: this proves the token reaches the tap.
   if GH_TOKEN="$HOMEBREW_TAP_TOKEN" gh api "repos/$TAP" --jq .full_name >/dev/null 2>&1; then
     printf '  %s✓ token reaches %s%s\n' "$GREEN" "$TAP" "$RESET"
@@ -291,6 +300,7 @@ while true; do
     break
   fi
   warn "This token cannot see $TAP — check 'Only select repositories'."
+  HOMEBREW_TAP_TOKEN=""
 done
 set_secret HOMEBREW_TAP_TOKEN "$HOMEBREW_TAP_TOKEN"
 
