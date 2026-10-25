@@ -18,9 +18,6 @@ struct ContentView: View {
                 }
         }
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                PrinterStatusBadge()
-            }
             ToolbarItemGroup(placement: .primaryAction) {
                 Toggle(isOn: $model.softproof) {
                     Label { Text("Softproof") } icon: { TablerIcon("eye", size: 18) }
@@ -53,41 +50,6 @@ struct ContentView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(model.errorMessage ?? "")
-        }
-    }
-}
-
-struct PrinterStatusBadge: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(text)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 8)
-        .help(model.queue?.deviceURI ?? "")
-    }
-
-    private var text: String {
-        if let alert = model.printerAlert { return alert.title }
-        if model.isPreparingJob { return "Preparing print…" }
-        if let job = model.job, job.state != .completed { return job.state.label }
-        guard model.queue != nil else { return "No Canon printer" }
-        return model.status.state.label
-    }
-
-    private var color: Color {
-        if let alert = model.printerAlert { return alert.severity == .error ? .red : .orange }
-        return switch model.status.state {
-        case .idle: .green
-        case .processing: .blue
-        case .stopped: .orange
-        case .unknown: .gray
         }
     }
 }

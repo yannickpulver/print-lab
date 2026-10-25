@@ -185,20 +185,23 @@ private struct PrinterCard: View {
                 }
             }
             .labelsHidden()
-            if let queue = model.queue {
-                HStack(spacing: 6) {
+            HStack(spacing: 6) {
+                PrinterStatusBadge()
+                Spacer(minLength: 8)
+                if let queue = model.queue {
                     TablerIcon("wifi", size: 13)
                     Text(queue.host ?? "USB")
                     if let signal = model.status.remoteUI?.signal {
                         Text("· \(signal) %" + (signal < 50 ? " (weak)" : ""))
                     }
                 }
-                .font(.callout)
-                .foregroundStyle(.secondary)
             }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            // The badge already names the alert.
             if let alert = model.printerAlert {
-                Hint(icon: "alert-triangle", text: "\(alert.title): \(alert.message)",
-                     tint: alert.severity == .error ? .red : .orange)
+                Hint(icon: "alert-triangle", text: alert.message, tint: alert.severity == .error ? .red : .orange)
             }
             ForEach(model.status.reasons.compactMap(Self.describe), id: \.self) { reason in
                 Hint(icon: "alert-triangle", text: reason, tint: .orange)
@@ -230,6 +233,41 @@ private struct PrinterCard: View {
             .replacingOccurrences(of: "-report", with: "")
         if reason.hasSuffix("-report") || ["spool-area-full", "other"].contains(base) { return nil }
         return known[base] ?? base.replacingOccurrences(of: "-", with: " ").capitalized
+    }
+}
+
+/// Dot and one word or line about the printer or the running job.
+private struct PrinterStatusBadge: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .help(model.queue?.deviceURI ?? "")
+    }
+
+    private var text: String {
+        if let alert = model.printerAlert { return alert.title }
+        if model.isPreparingJob { return "Preparing print…" }
+        if let job = model.job, job.state != .completed { return job.state.label }
+        guard model.queue != nil else { return "No Canon printer" }
+        return model.status.state.label
+    }
+
+    private var color: Color {
+        if let alert = model.printerAlert { return alert.severity == .error ? .red : .orange }
+        return switch model.status.state {
+        case .idle: .green
+        case .processing: .blue
+        case .stopped: .orange
+        case .unknown: .gray
+        }
     }
 }
 
@@ -293,13 +331,15 @@ private struct PaperCard: View {
 
                 Divider()
 
-                StackedRow(label: "Media type") {
+                Row(label: "Media", labelWidth: nil) {
                     Picker("Media type", selection: $model.sheet.print.mediaTypeID) {
                         ForEach(driver.mediaTypes) { media in
-                            Text(media.name).tag(media.id)
+                            // "Highest Density Fine Art Paper" fits on one line as "… Fine Art".
+                            Text(media.name.replacingOccurrences(of: " Fine Art Paper", with: " Fine Art")).tag(media.id)
                         }
                     }
                     .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 if !driver.paperSources.isEmpty {
                     Row(label: "Feed") {
@@ -531,6 +571,7 @@ private struct ColorCard: View {
 }
 
 /// Canon's profile for the media type, or a third-party profile (e.g. from the paper maker).
+/// Two lines like the preset menu: readable name, then the file.
 private struct ProfilePicker: View {
     @Environment(AppModel.self) private var model
     @State private var installed = ProfileLibrary.printerProfiles()
@@ -538,35 +579,47 @@ private struct ProfilePicker: View {
 
     var body: some View {
         @Bindable var model = model
-        let canon = model.driver?.profile(for: model.sheet.print.mediaTypeID).map { name($0.fileName) } ?? "Canon"
+        let canon = model.driver?.profile(for: model.sheet.print.mediaTypeID)
         let custom = model.sheet.print.customProfilePath
+        let active = model.paperProfile
         StackedRow(label: "Profile") {
             Button("Choose File…") { choosingFile = true }
                 .buttonStyle(.link)
                 .font(.callout)
         } control: {
-            VStack(alignment: .leading, spacing: 4) {
-                Picker("Profile", selection: $model.sheet.print.customProfilePath) {
-                    Text(canon).tag(String?.none)
-                    Divider()
-                    let names = menuNames
-                    ForEach(installed, id: \.url) { profile in
-                        Text(names[profile.url] ?? profile.fileName).tag(Optional(profile.url.path))
-                    }
-                    if let custom, !installed.contains(where: { $0.url.path == custom }) {
-                        Text(name(URL(fileURLWithPath: custom).lastPathComponent)).tag(Optional(custom))
-                    }
+            Menu {
+                item(canon?.fileName ?? "Canon", path: nil)
+                Divider()
+                ForEach(installed, id: \.url) { profile in
+                    item(profile.fileName, path: profile.url.path)
                 }
-                .labelsHidden()
-                if let file = model.paperProfile?.fileName {
-                    Text(file)
+                if let custom, !installed.contains(where: { $0.url.path == custom }) {
+                    item(URL(fileURLWithPath: custom).lastPathComponent, path: custom)
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(active.map { name($0.fileName) } ?? "No profile")
+                        Text(active?.fileName ?? "")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .truncationMode(.middle)
+                    }
+                    .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.up.chevron.down")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .padding(.leading, 4)
+                        .foregroundStyle(.secondary)
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                .contentShape(Rectangle())
             }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .frame(maxWidth: .infinity)
         }
         .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.init(filenameExtension: "icc")!,
                                                                         .init(filenameExtension: "icm")!]) { result in
@@ -575,27 +628,19 @@ private struct ProfilePicker: View {
         .onAppear { installed = ProfileLibrary.printerProfiles() }
     }
 
-    private func name(_ fileName: String) -> String {
-        CanonDriver.displayName(forProfileNamed: fileName)
+    /// Menu item: readable name with the file name below, checked when active. `path` nil is Canon's profile.
+    private func item(_ fileName: String, path: String?) -> some View {
+        Toggle(isOn: Binding(
+            get: { model.sheet.print.customProfilePath == path },
+            set: { if $0 { model.sheet.print.customProfilePath = path } }
+        )) {
+            Text(name(fileName))
+            Text(fileName)
+        }
     }
 
-    /// Two files can read the same, e.g. two Photo Rag profiles. The media type in the file name
-    /// tells them apart, else the file name does.
-    private var menuNames: [URL: String] {
-        func twins(_ names: [URL: String], _ url: URL) -> Bool {
-            names.values.filter { $0 == names[url] }.count > 1
-        }
-        var names = Dictionary(uniqueKeysWithValues: installed.map { ($0.url, name($0.fileName)) })
-        let plain = names
-        for profile in installed where twins(plain, profile.url) {
-            if let media = model.driver?.mediaType(forProfileNamed: profile.fileName) {
-                names[profile.url] = "\(plain[profile.url]!) · \(media.name)"
-            }
-        }
-        for profile in installed where twins(names, profile.url) {
-            names[profile.url] = "\(names[profile.url]!) – \(profile.fileName)"
-        }
-        return names
+    private func name(_ fileName: String) -> String {
+        CanonDriver.displayName(forProfileNamed: fileName)
     }
 }
 
