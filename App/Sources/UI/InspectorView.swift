@@ -333,9 +333,13 @@ private struct PaperCard: View {
 
                 Row(label: "Media", labelWidth: nil) {
                     Picker("Media type", selection: $model.sheet.print.mediaTypeID) {
-                        ForEach(driver.mediaTypes) { media in
-                            // "Highest Density Fine Art Paper" fits on one line as "… Fine Art".
-                            Text(media.name.replacingOccurrences(of: " Fine Art Paper", with: " Fine Art")).tag(media.id)
+                        ForEach(driver.mediaSections, id: \.title) { section in
+                            Section(section.title) {
+                                ForEach(section.media) { media in
+                                    // "Highest Density Fine Art Paper" fits on one line as "… Fine Art".
+                                    Text(media.name.replacingOccurrences(of: " Fine Art Paper", with: " Fine Art")).tag(media.id)
+                                }
+                            }
                         }
                     }
                     .labelsHidden()
@@ -409,19 +413,6 @@ private struct LayoutCard: View {
             Divider()
 
             MarginsEditor(margins: $model.sheet.layout.margins)
-            HStack(spacing: 6) {
-                Group {
-                    TablerIcon("border-outer", size: 13)
-                    Text("Printer mode: \(model.sheet.print.margin.label)")
-                }
-                .foregroundStyle(.secondary)
-                Spacer()
-                Button("Make borderless") { model.sheet.layout.margins = .all(0) }
-                    .buttonStyle(.link)
-                    .disabled(model.sheet.layout.margins == .all(0))
-                    .help("Set all margins to 0 mm")
-            }
-            .font(.callout)
             ForEach(model.marginPlan?.notes ?? [], id: \.self) { note in
                 Hint(icon: "info-circle", text: note)
             }
@@ -619,6 +610,7 @@ private struct ProfilePicker: View {
             .menuStyle(.button)
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
+            .focusEffectDisabled()
             .frame(maxWidth: .infinity)
         }
         .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.init(filenameExtension: "icc")!,
@@ -754,6 +746,8 @@ private struct PresetCard: View {
                 .menuStyle(.button)
                 .buttonStyle(.plain)
                 .menuIndicator(.hidden)
+                // Custom chrome; the focus ring would sit on the first control at launch.
+                .focusEffectDisabled()
                 .disabled(model.presets.isEmpty)
                 .frame(maxWidth: .infinity)
                 Button {

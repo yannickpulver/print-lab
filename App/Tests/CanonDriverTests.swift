@@ -24,6 +24,17 @@ struct CanonDriverTests {
         }
     }
 
+    @Test func groupsMediaTypesIntoSections() {
+        let sections = driver.mediaSections
+        #expect(sections.map(\.title) == ["Photo", "Matte", "Fine Art", "Other"])
+        #expect(sections.flatMap(\.media).count == driver.mediaTypes.count)
+        let names = Dictionary(uniqueKeysWithValues: sections.map { ($0.title, $0.media.map(\.name)) })
+        #expect(names["Matte"] == ["Matte Photo Paper", "Photo Paper Pro Premium Matte A", "Photo Paper Pro Premium Matte"])
+        #expect(names["Fine Art"]?.last == "Japanese Paper Washi")
+        #expect(names["Other"] == ["Plain Paper", "Hagaki A", "Ink Jet Hagaki", "Hagaki"])
+        #expect(names["Photo"]?.contains("Baryta Photo Paper") == true)
+    }
+
     @Test func plainPaperFallsBackToGenericProfile() {
         #expect(driver.profile(for: "0")?.fileName == "CN_IJPrinter_Profile2015.icc")
     }

@@ -102,7 +102,25 @@ struct CanonDriver: Sendable {
     /// Canon regulates margins on art papers to 25 mm at top and bottom.
     func isFineArt(_ mediaID: String) -> Bool {
         guard let name = mediaType(mediaID)?.name else { return false }
-        return ["Fine Art", "Canvas", "Washi"].contains { name.localizedCaseInsensitiveContains($0) }
+        return Self.isFineArt(name: name)
+    }
+
+    private static func isFineArt(name: String) -> Bool {
+        ["Fine Art", "Canvas", "Washi"].contains { name.localizedCaseInsensitiveContains($0) }
+    }
+
+    /// Media types grouped for the menu, in the driver's order within each group.
+    var mediaSections: [(title: String, media: [MediaType])] {
+        func section(_ media: MediaType) -> String {
+            if Self.isFineArt(name: media.name) { return "Fine Art" }
+            if media.name.localizedCaseInsensitiveContains("Matte") { return "Matte" }
+            if media.name.localizedCaseInsensitiveContains("Photo") { return "Photo" }
+            return "Other"
+        }
+        let grouped = Dictionary(grouping: mediaTypes, by: section)
+        return ["Photo", "Matte", "Fine Art", "Other"].compactMap { title in
+            grouped[title].map { (title, $0) }
+        }
     }
 
     /// Picks the page variant that allows the wanted margins: Fine Art, else Standard, else Borderless.
