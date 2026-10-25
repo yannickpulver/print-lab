@@ -746,8 +746,6 @@ private struct PresetCard: View {
                 .menuStyle(.button)
                 .buttonStyle(.plain)
                 .menuIndicator(.hidden)
-                // Custom chrome; the focus ring would sit on the first control at launch.
-                .focusEffectDisabled()
                 .disabled(model.presets.isEmpty)
                 .frame(maxWidth: .infinity)
                 Button {
@@ -763,6 +761,8 @@ private struct PresetCard: View {
                     .disabled(active == nil)
                     .help(active.map { "Delete \($0.name)" } ?? "Choose a preset to delete it")
             }
+            // The first control in the window gets focus at launch; no ring on this card.
+            .focusEffectDisabled()
         }
         .alert("Save Preset", isPresented: $naming) {
             TextField("Name", text: $newName)
