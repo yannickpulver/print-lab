@@ -27,13 +27,6 @@ struct ContentView: View {
                 }
                 .help("Show colors as they will look on the selected paper")
                 Button {
-                    model.print()
-                } label: {
-                    Label("Print", systemImage: "printer")
-                }
-                .disabled(!model.canPrint)
-                .help("Print the sheet")
-                Button {
                     showInspector.toggle()
                 } label: {
                     Label("Inspector", systemImage: "sidebar.right")
@@ -46,6 +39,12 @@ struct ContentView: View {
             allowsMultipleSelection: true
         ) { result in
             if case .success(let urls) = result { model.addImages(urls) }
+        }
+        .confirmationDialog("Print this sheet?", isPresented: $model.confirmingPrint) {
+            Button("Print") { model.print() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(model.printSummary.joined(separator: "\n"))
         }
         .alert(
             "Something went wrong",

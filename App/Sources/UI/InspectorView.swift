@@ -371,7 +371,7 @@ private struct PrintSection: View {
                         }
                     }
                     Spacer()
-                    Button("Print") { model.print() }
+                    Button("Print…") { model.requestPrint() }
                         .buttonStyle(.borderedProminent)
                         .disabled(!model.canPrint)
                 }

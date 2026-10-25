@@ -336,7 +336,39 @@ final class AppModel {
 
     // MARK: - Printing
 
+    /// Shows the confirmation before anything goes to the printer.
+    var confirmingPrint = false
+
+    func requestPrint() {
+        guard canPrint else { return }
+        confirmingPrint = true
+    }
+
+    /// What the confirmation lists: paper, media, profile, quality, margins, feed and image count.
+    var printSummary: [String] {
+        guard let driver else { return [] }
+        let paper = driver.paper(sheet.print.paperID)?.label ?? sheet.print.paperID
+        let orientation = sheet.orientation == .portrait ? "portrait" : "landscape"
+        let media = driver.mediaType(sheet.print.mediaTypeID)?.name ?? sheet.print.mediaTypeID
+        let quality = driver.qualities.first { $0.id == sheet.print.qualityID }?.name ?? sheet.print.qualityID
+        let source = driver.paperSources.first { $0.id == sheet.print.paperSourceID }?.name
+        let m = sheet.layout.margins
+        let margins = [m.top, m.left, m.bottom, m.right].allSatisfy { $0 == m.top }
+            ? String(format: "%g mm", m.top)
+            : String(format: "%g / %g / %g / %g mm", m.top, m.left, m.bottom, m.right)
+        let images = sheet.cells.filter { $0.imageID != nil }.count
+        return [
+            "\(paper), \(orientation)" + (source.map { " · \($0)" } ?? ""),
+            media,
+            "Profile: \(paperProfile?.fileName ?? "none")",
+            "Quality: \(quality)",
+            "Margins: \(margins) (\(sheet.print.margin.label))",
+            images == 1 ? "1 image" : "\(images) images",
+        ]
+    }
+
     func print() {
+        confirmingPrint = false
         guard canPrint, let queue, let driver else { return }
         let request = PrintRequest(
             sheet: sheet, queue: queue, driver: driver, color: color,

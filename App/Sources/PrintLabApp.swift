@@ -21,7 +21,7 @@ struct PrintLabApp: App {
                     .keyboardShortcut("o")
             }
             CommandGroup(replacing: .printItem) {
-                Button("Print…") { model.print() }
+                Button("Print…") { model.requestPrint() }
                     .keyboardShortcut("p")
                     .disabled(!model.canPrint)
             }
