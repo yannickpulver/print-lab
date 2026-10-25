@@ -134,37 +134,116 @@ enum ColorPipeline {
     static func convert(
         _ image: RGB16Image, to target: ColorSyncProfile, intent: CFString, blackPointCompensation: Bool
     ) throws -> RGB16Image {
-        let sequence: [[String: Any]] = [
-            [
-                kColorSyncProfile.takeUnretainedValue() as String: image.profile,
-                kColorSyncRenderingIntent.takeUnretainedValue() as String: intent,
-                kColorSyncTransformTag.takeUnretainedValue() as String:
-                    kColorSyncTransformDeviceToPCS.takeUnretainedValue(),
-            ],
-            [
-                kColorSyncProfile.takeUnretainedValue() as String: target,
-                kColorSyncRenderingIntent.takeUnretainedValue() as String: intent,
-                kColorSyncTransformTag.takeUnretainedValue() as String:
-                    kColorSyncTransformPCSToDevice.takeUnretainedValue(),
-                kColorSyncBlackPointCompensation.takeUnretainedValue() as String: blackPointCompensation,
-            ],
-        ]
-        guard let transform = ColorSyncTransformCreate(sequence as CFArray, nil)?.takeRetainedValue() else {
-            throw ColorPipelineError.transformFailed
+        if blackPointCompensation {
+            return try convertCompensatingBlack(image, to: target, intent: intent)
         }
+        let transform = try transform(image.profile, target, intent)
         var output = [UInt16](repeating: 0, count: image.pixels.count)
-        let layout = ColorSyncDataLayout(kColorSyncAlphaNone.rawValue) | ColorSyncDataLayout(kColorSyncByteOrder16Little)
         let ok = output.withUnsafeMutableBytes { dst in
             image.pixels.withUnsafeBytes { src in
                 ColorSyncTransformConvert(
                     transform, image.width, image.height,
-                    dst.baseAddress!, kColorSync16BitInteger, layout, image.bytesPerRow,
-                    src.baseAddress!, kColorSync16BitInteger, layout, image.bytesPerRow, nil
+                    dst.baseAddress!, kColorSync16BitInteger, rgb16, image.bytesPerRow,
+                    src.baseAddress!, kColorSync16BitInteger, rgb16, image.bytesPerRow, nil
                 )
             }
         }
         guard ok else { throw ColorPipelineError.transformFailed }
         return RGB16Image(width: image.width, height: image.height, pixels: output, profile: target)
+    }
+
+    /// Black point compensation as Adobe does it: in XYZ, source black → target black, white unchanged.
+    /// ColorSync's own (`kColorSyncBlackPointCompensation`) also shifts colors: a light sky turned about
+    /// 10 b* bluer with every paper profile tried.
+    private static func convertCompensatingBlack(
+        _ image: RGB16Image, to target: ColorSyncProfile, intent: CFString
+    ) throws -> RGB16Image {
+        guard let xyz = ColorSyncProfileCreateWithName(kColorSyncGenericXYZProfile.takeUnretainedValue())?
+            .takeRetainedValue() else { throw ColorPipelineError.transformFailed }
+        let toXYZ = try transform(image.profile, xyz, intent)
+        let fromXYZ = try transform(xyz, target, intent)
+
+        // Black and white of both sides, measured through the same intent.
+        let ends: [UInt16] = [0, 0, 0, 65535, 65535, 65535]
+        let source = try xyzValues(of: ends, through: toXYZ)
+        let destination = try xyzValues(of: ends, through: transform(target, xyz, intent))
+        // v' = (v - source black) / (source white - source black) * (target range) + target black
+        let scale = (0..<3).map { (destination[3 + $0] - destination[$0]) / (source[3 + $0] - source[$0]) }
+        let offset = (0..<3).map { destination[$0] - source[$0] * scale[$0] }
+
+        // In strips, so a large print does not hold a full float copy of the image.
+        let width = image.width
+        let stripRows = max(1, 1 << 20 / max(1, width))
+        var output = [UInt16](repeating: 0, count: image.pixels.count)
+        var strip = [Float](repeating: 0, count: stripRows * width * 3)
+        var ok = true
+        for y in stride(from: 0, to: image.height, by: stripRows) where ok {
+            let rows = min(stripRows, image.height - y)
+            let start = y * width * 3
+            let count = rows * width * 3
+            ok = strip.withUnsafeMutableBytes { xyzBuffer in
+                image.pixels.withUnsafeBytes { src in
+                    ColorSyncTransformConvert(
+                        toXYZ, width, rows, xyzBuffer.baseAddress!, kColorSync32BitFloat, xyz32, width * 12,
+                        src.baseAddress! + start * 2, kColorSync16BitInteger, rgb16, image.bytesPerRow, nil)
+                }
+            }
+            guard ok else { break }
+            for i in 0..<count {
+                let c = i % 3
+                strip[i] = strip[i] * scale[c] + offset[c]
+            }
+            ok = output.withUnsafeMutableBytes { dst in
+                strip.withUnsafeBytes { xyzBuffer in
+                    ColorSyncTransformConvert(
+                        fromXYZ, width, rows, dst.baseAddress! + start * 2, kColorSync16BitInteger, rgb16,
+                        image.bytesPerRow, xyzBuffer.baseAddress!, kColorSync32BitFloat, xyz32, width * 12, nil)
+                }
+            }
+        }
+        guard ok else { throw ColorPipelineError.transformFailed }
+        return RGB16Image(width: image.width, height: image.height, pixels: output, profile: target)
+    }
+
+    private static let rgb16 = ColorSyncDataLayout(kColorSyncAlphaNone.rawValue)
+        | ColorSyncDataLayout(kColorSyncByteOrder16Little)
+    private static let xyz32 = ColorSyncDataLayout(kColorSyncAlphaNone.rawValue)
+        | ColorSyncDataLayout(kColorSyncByteOrder32Little)
+
+    private static func transform(
+        _ from: ColorSyncProfile, _ to: ColorSyncProfile, _ intent: CFString
+    ) throws -> ColorSyncTransform {
+        let sequence: [[String: Any]] = [
+            [
+                kColorSyncProfile.takeUnretainedValue() as String: from,
+                kColorSyncRenderingIntent.takeUnretainedValue() as String: intent,
+                kColorSyncTransformTag.takeUnretainedValue() as String:
+                    kColorSyncTransformDeviceToPCS.takeUnretainedValue(),
+            ],
+            [
+                kColorSyncProfile.takeUnretainedValue() as String: to,
+                kColorSyncRenderingIntent.takeUnretainedValue() as String: intent,
+                kColorSyncTransformTag.takeUnretainedValue() as String:
+                    kColorSyncTransformPCSToDevice.takeUnretainedValue(),
+            ],
+        ]
+        guard let transform = ColorSyncTransformCreate(sequence as CFArray, nil)?.takeRetainedValue() else {
+            throw ColorPipelineError.transformFailed
+        }
+        return transform
+    }
+
+    private static func xyzValues(of pixels: [UInt16], through transform: ColorSyncTransform) throws -> [Float] {
+        let count = pixels.count / 3
+        var values = [Float](repeating: 0, count: pixels.count)
+        let ok = values.withUnsafeMutableBytes { dst in
+            pixels.withUnsafeBytes { src in
+                ColorSyncTransformConvert(transform, count, 1, dst.baseAddress!, kColorSync32BitFloat, xyz32,
+                                          count * 12, src.baseAddress!, kColorSync16BitInteger, rgb16, count * 6, nil)
+            }
+        }
+        guard ok else { throw ColorPipelineError.transformFailed }
+        return values
     }
 
     /// Source → paper profile with the chosen intent: the numbers the printer receives.
