@@ -1,3 +1,5 @@
+<img src="docs/icon.png" width="64" alt="Print Lab icon">
+
 # Print Lab
 
 A macOS app for printing photos on the Canon imagePROGRAF PRO-1000. An open alternative to Canon's Professional Print & Layout.
