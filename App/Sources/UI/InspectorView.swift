@@ -625,19 +625,45 @@ private struct PresetCard: View {
         let active = model.activePreset
         Card(title: "Preset", icon: "bookmark") {
             HStack(spacing: 10) {
-                Picker("Preset", selection: Binding(
-                    get: { active?.id },
-                    set: { id in if let preset = model.presets.first(where: { $0.id == id }) { model.apply(preset) } }
-                )) {
-                    if active == nil {
-                        Text("Custom settings").tag(UUID?.none)
-                        Divider()
+                Menu {
+                    Picker("Preset", selection: Binding(
+                        get: { active?.id },
+                        set: { id in if let preset = model.presets.first(where: { $0.id == id }) { model.apply(preset) } }
+                    )) {
+                        ForEach(model.presets) { preset in
+                            Label {
+                                Text(preset.name)
+                                Text(summary(preset.print))
+                            } icon: {
+                                thumbnail(preset.print, preset.layout, preset.orientation, height: 28)
+                            }
+                            .tag(Optional(preset.id))
+                        }
                     }
-                    ForEach(model.presets) { preset in
-                        Text(preset.name).tag(Optional(preset.id))
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } label: {
+                    HStack(spacing: 10) {
+                        thumbnail(model.sheet.print, model.sheet.layout, model.sheet.orientation, height: 34)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(active?.name ?? "Custom settings")
+                                .fontWeight(.medium)
+                            Text(summary(model.sheet.print))
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                        .lineLimit(1)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
+                    .contentShape(Rectangle())
                 }
-                .labelsHidden()
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .disabled(model.presets.isEmpty)
                 .frame(maxWidth: .infinity)
                 Button {
                     newName = ""
@@ -663,6 +689,58 @@ private struct PresetCard: View {
         } message: {
             Text("Saves paper, media, profile, layout and color settings. Images are not part of a preset.")
         }
+    }
+
+    /// "A3 · Baryta Photographic"
+    private func summary(_ print: PrintSettings) -> String {
+        let paper = model.driver?.paper(print.paperID)?.label ?? print.paperID
+        let media = model.driver?.mediaType(print.mediaTypeID)?.name ?? print.mediaTypeID
+        return "\(paper) · \(media)"
+    }
+
+    /// Menus only show images, so the thumbnail gets rendered once per item.
+    private func thumbnail(_ print: PrintSettings, _ layout: LayoutSpec, _ orientation: Orientation,
+                           height: CGFloat) -> Image {
+        let size = model.driver?.paper(print.paperID)?.size ?? CGSize(width: 595, height: 842)
+        let paper = CGSize(width: Units.mm(size.width), height: Units.mm(size.height))
+        let view = SheetThumbnail(
+            paperSize: orientation == .portrait ? paper : CGSize(width: paper.height, height: paper.width),
+            layout: layout,
+            fineArt: model.driver?.isFineArt(print.mediaTypeID) ?? false,
+            height: height
+        )
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        return renderer.nsImage.map { Image(nsImage: $0) } ?? Image(systemName: "doc")
+    }
+}
+
+/// A tiny sheet: paper shape, margins and cells, in a square so text next to it lines up.
+/// Fine art paper is warm white.
+private struct SheetThumbnail: View {
+    let paperSize: CGSize
+    let layout: LayoutSpec
+    let fineArt: Bool
+    let height: CGFloat
+
+    var body: some View {
+        let scale = height / max(paperSize.width, paperSize.height)
+        let m = layout.margins
+        let content = CGRect(x: m.left, y: m.top, width: paperSize.width - m.left - m.right,
+                             height: paperSize.height - m.top - m.bottom)
+        let cells = LayoutEngine.frames(spec: layout, content: content, imageCount: layout.columns * layout.columns)
+        Canvas { context, size in
+            let paper = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 1.5)
+            context.fill(paper, with: .color(fineArt ? Color(red: 0.96, green: 0.94, blue: 0.88) : .white))
+            for cell in cells {
+                let rect = CGRect(x: cell.minX * scale, y: cell.minY * scale,
+                                  width: cell.width * scale, height: cell.height * scale)
+                context.fill(Path(rect), with: .color(Color(white: 0.55)))
+            }
+            context.stroke(paper, with: .color(.black.opacity(0.2)), lineWidth: 0.5)
+        }
+        .frame(width: (paperSize.width * scale).rounded(), height: (paperSize.height * scale).rounded())
+        .frame(width: height + 2, height: height + 2)
     }
 }
 
