@@ -60,6 +60,20 @@ struct ColorPipelineTests {
     }
 
     @Test(.enabled(if: TestSupport.canonPPD != nil))
+    func blackPointCompensationPrintsDeepestPaperBlack() throws {
+        let paper = try ColorPipeline.profile(
+            at: URL(fileURLWithPath: "/Library/ColorSync/Profiles/CN_PRO-1000_500_HighestDensityFineArtPaper-P.icc"))
+        // Canon's matte profile squeezes the shadows into paper black itself. Aiming source black at the
+        // profile's RGB 0,0,0 printed it at device ~6000 and proofed it at display ~10000.
+        let black = RGB16Image(width: 1, height: 1, pixels: [0, 0, 0], profile: srgb)
+        let settings = ColorSettings(intent: .relativeColorimetric, blackPointCompensation: true)
+        let onPaper = try ColorPipeline.toPaper(black, paper: paper, settings: settings)
+        #expect(onPaper.pixels.allSatisfy { $0 < 500 })
+        let proof = try ColorPipeline.softproof(onPaper, simulatePaperWhite: false)
+        #expect(proof.pixels.allSatisfy { $0 < 1000 })
+    }
+
+    @Test(.enabled(if: TestSupport.canonPPD != nil))
     func blackPointCompensationLiftsShadowsIntoPaperBlack() throws {
         let paper = try ColorPipeline.profile(
             at: URL(fileURLWithPath: "/Library/ColorSync/Profiles/CN_PRO-1000_500_HighestDensityFineArtPaper-P.icc"))

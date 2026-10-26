@@ -163,10 +163,8 @@ enum ColorPipeline {
         let toXYZ = try transform(image.profile, xyz, intent)
         let fromXYZ = try transform(xyz, target, intent)
 
-        // Black and white of both sides, measured through the same intent.
-        let ends: [UInt16] = [0, 0, 0, 65535, 65535, 65535]
-        let source = try xyzValues(of: ends, through: toXYZ)
-        let destination = try xyzValues(of: ends, through: transform(target, xyz, intent))
+        let source = try ends(of: image.profile, xyz: xyz, intent: intent).reached
+        let destination = try ends(of: target, xyz: xyz, intent: intent).aim
         // v' = (v - source black) / (source white - source black) * (target range) + target black
         var scale = [Float](repeating: 1, count: 3)
         var offset = [Float](repeating: 0, count: 3)
@@ -237,6 +235,44 @@ enum ColorPipeline {
             throw ColorPipelineError.transformFailed
         }
         return transform
+    }
+
+    /// White and black of a profile in XYZ through `intent`, as [black, white]. Paper profiles disagree on
+    /// black: some clip everything below the paper's black, others already squeeze the shadows into it.
+    /// `reached` is the darkest color a conversion into the profile produces (a printer profile's RGB 0,0,0
+    /// is darker still), `aim` the lightest gray that still converts to it: the black to map onto.
+    private static func ends(
+        of profile: ColorSyncProfile, xyz: ColorSyncProfile, intent: CFString
+    ) throws -> (reached: [Float], aim: [Float]) {
+        let toXYZ = try transform(profile, xyz, intent)
+        let white = try xyzValues(of: [65535, 65535, 65535], through: toXYZ)
+        // Grays from L* 0 to 50 in quarter steps, relative to the profile's white.
+        let grays = (0...200).map { step -> Float in
+            let lightness = Float(step) / 4
+            return lightness > 8 ? pow((lightness + 16) / 116, 3) : lightness / 903.3
+        }
+        let input = grays.flatMap { y in white.map { $0 * y } }
+        let device = try deviceValues(of: input, through: transform(xyz, profile, intent))
+        let roundTrip = try xyzValues(of: device, through: toXYZ)
+        func lightness(_ i: Int) -> Float {
+            let y = roundTrip[i * 3 + 1] / white[1]
+            return y > 0.008856 ? 116 * cbrt(y) - 16 : y * 903.3
+        }
+        let aim = grays.indices.last { lightness($0) <= lightness(0) + 0.1 } ?? 0
+        return (Array(roundTrip[0..<3]) + white, Array(input[aim * 3..<aim * 3 + 3]) + white)
+    }
+
+    private static func deviceValues(of xyzValues: [Float], through transform: ColorSyncTransform) throws -> [UInt16] {
+        let count = xyzValues.count / 3
+        var pixels = [UInt16](repeating: 0, count: xyzValues.count)
+        let ok = pixels.withUnsafeMutableBytes { dst in
+            xyzValues.withUnsafeBytes { src in
+                ColorSyncTransformConvert(transform, count, 1, dst.baseAddress!, kColorSync16BitInteger, rgb16,
+                                          count * 6, src.baseAddress!, kColorSync32BitFloat, xyz32, count * 12, nil)
+            }
+        }
+        guard ok else { throw ColorPipelineError.transformFailed }
+        return pixels
     }
 
     private static func xyzValues(of pixels: [UInt16], through transform: ColorSyncTransform) throws -> [Float] {

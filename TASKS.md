@@ -16,6 +16,8 @@
 - [x] Load images (TIFF/JPEG/PNG/HEIC/PSD) at 16 bit with their profile, EXIF orientation
 - [x] ColorSync transform: source → paper profile (intent + BPC)
 - [x] Softproof: paper → display, optional paper white
+- [x] Black point compensation aims at the black the paper conversion reaches (Canon matte profiles printed source black at device ~6000, proofs looked lifted)
+- [ ] Check on paper: Highest Density Fine Art + BPC prints deeper blacks than 0.1.7, shadows match the proof
 
 ## Layout
 - [x] Sheet model: paper, orientation, borderless, margins, placed images (fill/fit, rotation, crop pan)
