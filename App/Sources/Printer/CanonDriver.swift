@@ -230,6 +230,23 @@ struct CanonDriver: Sendable {
         "BPP": "Baryta Photo Paper",
         "HWPP": "Heavyweight Photo Paper",
         "LWPP": "Lightweight Photo Paper",
+        // Hanemuehle_CanPro1000_PK_FAPearl_BarytaSetting_BarytaPapier.icc
+        "BARYTASETTING": "Baryta Photo Paper",
+        "BARYTAPAPIER": "Baryta Photo Paper",
+    ]
+
+    /// Paper codes in profile names: readable name and, for names without a media code, the media type
+    /// Canon's ICC profile table lists for the paper.
+    static let knownPapers: [String: (name: String, media: String?)] = [
+        "PHOTORAG": ("Photo Rag", "Highest Density Fine Art Paper"),
+        "FAPEARL": ("FineArt Pearl", "Heavyweight Photo Paper"),
+        "GPSGP": ("Galerie Smooth Gloss", nil),
+        "GPSPP": ("Galerie Smooth Pearl", nil),
+        "GPTC": ("Galerie Textured Cotton Rag", nil),
+        "PD190": ("Duo Matt PD190", nil),
+        "PPG250": ("Pearl-Gloss PPG250", nil),
+        "PFR220": ("FineArt Rag PFR220", nil),
+        "PFR295": ("FineArt Rag PFR295", nil),
     ]
 
     /// Paper maker prefixes in profile file names.
@@ -261,7 +278,7 @@ struct CanonDriver: Sendable {
             } else if upper == "MK" || upper == "PK" {
                 ink = upper
             } else if !printerTokens.contains(upper), mediaCodes[upper] == nil {
-                words.append(spaced(token))
+                words.append(knownPapers[upper]?.name ?? spaced(token))
             }
         }
         guard !words.isEmpty else { return base.replacingOccurrences(of: "_", with: " ") }
@@ -284,17 +301,36 @@ struct CanonDriver: Sendable {
         return out
     }
 
-    /// Media type a profile was made for, read from its file name. Nil when the name does not say.
+    /// Media type a profile was made for: the media code in its file name, else the one Canon lists for the paper.
+    /// Nil when neither is known.
     func mediaType(forProfileNamed fileName: String) -> MediaType? {
         if let canon = mediaTypes.first(where: { $0.profile?.fileName == fileName }) { return canon }
         let base = (fileName as NSString).deletingPathExtension
         let tokens = base.split(whereSeparator: { $0 == "_" || $0 == "-" || $0 == " " }).map { $0.uppercased() }
-        for token in tokens.reversed() {
-            if let name = Self.mediaCodes[token], let media = mediaTypes.first(where: { $0.name == name }) {
-                return media
-            }
+        let names = tokens.reversed().compactMap { Self.mediaCodes[$0] } + tokens.compactMap { Self.knownPapers[$0]?.media }
+        for name in names {
+            if let media = mediaTypes.first(where: { $0.name == name }) { return media }
         }
         return nil
+    }
+
+    /// Printer model in Canon's profile names, e.g. "PRO-1000" from "CN_PRO-1000_500_Canvas-P.icc".
+    var model: String? {
+        mediaTypes.lazy.compactMap { $0.profile?.fileName.split(separator: "_").dropFirst().first }.first.map(String.init)
+    }
+
+    /// Whether a profile name mentions this printer, e.g. "HFA_CanPro1000_MK_PhotoRag.icc" or
+    /// "ILFORD_CANpro-1000_GPTC_HDFAP.icc" for the PRO-1000. A PRO-200 leaves out PRO-200S profiles.
+    func isForThisPrinter(profileNamed fileName: String) -> Bool {
+        guard let model else { return true }
+        let key = model.lowercased().filter { $0.isLetter || $0.isNumber }
+        let name = fileName.lowercased().replacingOccurrences(of: "-", with: "")
+        var rest = name[...]
+        while let range = rest.range(of: key) {
+            rest = rest[range.upperBound...]
+            if !(rest.first.map { $0.isLetter || $0.isNumber } ?? false) { return true }
+        }
+        return false
     }
 
     // MARK: - Mapping helpers

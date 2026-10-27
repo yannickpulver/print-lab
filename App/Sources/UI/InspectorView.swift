@@ -342,6 +342,10 @@ private struct PaperCard: View {
         @Bindable var model = model
         if let driver = model.driver {
             Card(title: "Paper", icon: "file-description") {
+                PaperPicker()
+
+                Divider()
+
                 Row(label: "Size") {
                     Picker("Size", selection: $model.sheet.print.paperID) {
                         ForEach(driver.papers) { paper in
@@ -391,10 +395,6 @@ private struct PaperCard: View {
                 ForEach(model.conflicts, id: \.self) { conflict in
                     Hint(icon: "alert-triangle", text: conflict, tint: .orange)
                 }
-
-                Divider()
-
-                ProfilePicker()
                 if let profile = model.paperProfile,
                    let expected = driver.mediaType(forProfileNamed: profile.fileName),
                    expected.id != model.sheet.print.mediaTypeID {
@@ -673,36 +673,49 @@ private struct ColorCard: View {
     }
 }
 
-/// Canon's profile for the media type, or a third-party profile (e.g. from the paper maker).
-/// Two lines like the preset menu: readable name, then the file.
-private struct ProfilePicker: View {
+/// The paper in the printer: a paper maker's profile or a Canon paper. Picking one sets the profile
+/// and the media type it was made for. Two lines like the preset menu: readable name, then the file.
+private struct PaperPicker: View {
     @Environment(AppModel.self) private var model
     @State private var installed = ProfileLibrary.printerProfiles()
     @State private var choosingFile = false
 
     var body: some View {
-        @Bindable var model = model
-        let canon = model.driver?.profile(for: model.sheet.print.mediaTypeID)
+        let driver = model.driver
         let custom = model.sheet.print.customProfilePath
         let active = model.paperProfile
-        StackedRow(label: "Profile") {
+        let forPrinter = installed.filter { driver?.isForThisPrinter(profileNamed: $0.fileName) ?? true }
+        let others = installed.filter { !forPrinter.contains($0) }
+        StackedRow(label: "Paper") {
             Button("Choose File…") { choosingFile = true }
                 .buttonStyle(.link)
                 .font(.callout)
         } control: {
             Menu {
-                item(canon?.fileName ?? "Canon", path: nil)
-                Divider()
-                ForEach(installed, id: \.url) { profile in
+                ForEach(forPrinter, id: \.url) { profile in
                     item(profile.fileName, path: profile.url.path)
                 }
                 if let custom, !installed.contains(where: { $0.url.path == custom }) {
                     item(URL(fileURLWithPath: custom).lastPathComponent, path: custom)
                 }
+                Divider()
+                Section("Canon") {
+                    ForEach(driver?.mediaTypes.filter { $0.profile != nil } ?? []) { media in
+                        canonItem(media)
+                    }
+                }
+                if !others.isEmpty {
+                    Divider()
+                    Menu("Other Printers") {
+                        ForEach(others, id: \.url) { profile in
+                            item(profile.fileName, path: profile.url.path)
+                        }
+                    }
+                }
             } label: {
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(active.map { name($0.fileName) } ?? "No profile")
+                        Text(model.paperName ?? "No profile")
                         Text(active?.fileName ?? "")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -727,24 +740,31 @@ private struct ProfilePicker: View {
         }
         .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.init(filenameExtension: "icc")!,
                                                                         .init(filenameExtension: "icm")!]) { result in
-            if case .success(let url) = result { model.sheet.print.customProfilePath = url.path }
+            if case .success(let url) = result { model.choosePaper(profileAt: url.path) }
         }
         .onAppear { installed = ProfileLibrary.printerProfiles() }
     }
 
-    /// Menu item: readable name with the file name below, checked when active. `path` nil is Canon's profile.
-    private func item(_ fileName: String, path: String?) -> some View {
+    /// Paper maker's profile: readable name with the file name below, checked when active.
+    private func item(_ fileName: String, path: String) -> some View {
         Toggle(isOn: Binding(
             get: { model.sheet.print.customProfilePath == path },
-            set: { if $0 { model.sheet.print.customProfilePath = path } }
+            set: { if $0 { model.choosePaper(profileAt: path) } }
         )) {
-            Text(name(fileName))
+            Text(CanonDriver.displayName(forProfileNamed: fileName))
             Text(fileName)
         }
     }
 
-    private func name(_ fileName: String) -> String {
-        CanonDriver.displayName(forProfileNamed: fileName)
+    /// Canon paper: the media type with Canon's profile, checked when active.
+    private func canonItem(_ media: CanonDriver.MediaType) -> some View {
+        Toggle(isOn: Binding(
+            get: { model.sheet.print.customProfilePath == nil && model.sheet.print.mediaTypeID == media.id },
+            set: { if $0 { model.choosePaper(canonMedia: media.id) } }
+        )) {
+            Text(media.name)
+            Text(media.profile?.fileName ?? "")
+        }
     }
 }
 

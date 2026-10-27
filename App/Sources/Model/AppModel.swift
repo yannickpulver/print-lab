@@ -97,6 +97,26 @@ final class AppModel {
 
     var paperProfile: CanonDriver.PaperProfile? { driver?.profile(for: sheet.print) }
 
+    /// The paper in the printer, read from its profile, e.g. "Hahnemühle Photo Rag (MK)".
+    var paperName: String? { paperProfile.map { CanonDriver.displayName(forProfileNamed: $0.fileName) } }
+
+    /// Picks a paper maker's profile together with the media type it was made for, when known.
+    func choosePaper(profileAt path: String) {
+        var settings = sheet.print
+        settings.customProfilePath = path
+        let fileName = URL(fileURLWithPath: path).lastPathComponent
+        if let media = driver?.mediaType(forProfileNamed: fileName) { settings.mediaTypeID = media.id }
+        sheet.print = settings
+    }
+
+    /// Picks a Canon paper: its media type with Canon's profile.
+    func choosePaper(canonMedia mediaID: String) {
+        var settings = sheet.print
+        settings.customProfilePath = nil
+        settings.mediaTypeID = mediaID
+        sheet.print = settings
+    }
+
     var conflicts: [String] { driver?.conflicts(for: sheet.print) ?? [] }
 
     var marginPlan: CanonDriver.MarginPlan? {
@@ -391,7 +411,7 @@ final class AppModel {
         confirmingPrint = true
     }
 
-    /// What the confirmation lists: paper, media, profile, quality, margins, feed and image count.
+    /// What the confirmation lists: paper, preset, size, media, profile, quality, margins, feed and image count.
     var printSummary: [String] {
         guard let driver else { return [] }
         let paper = driver.paper(sheet.print.paperID)?.label ?? sheet.print.paperID
@@ -407,15 +427,20 @@ final class AppModel {
         let sheets = Set(sheet.cells.filter { $0.imageID != nil }.map(\.page)).count
         let manualFeed = source?.localizedCaseInsensitiveContains("Manual") == true
         let weakLink = connection.flatMap { $0.rating == .poor ? $0.causes.first : nil }
-        return [
+        var lines: [String] = [paperName, activePreset.map { "Preset: \($0.name)" }].compactMap { $0 }
+        lines += [
             "\(paper), \(orientation)" + (source.map { " · \($0)" } ?? ""),
             media,
             "Profile: \(paperProfile?.fileName ?? "none")",
             "Quality: \(quality)",
             "Margins: \(margins) (\(sheet.print.margin.label))",
             (images == 1 ? "1 image" : "\(images) images") + (sheets > 1 ? " on \(sheets) sheets" : ""),
-        ] + (manualFeed ? ["", "Manual feed: load the sheet when the printer asks and press OK on the printer."] : [])
-            + (weakLink.map { ["", "Poor connection: \($0). A large print can take much longer and pause between passes."] } ?? [])
+        ]
+        if manualFeed { lines += ["", "Manual feed: load the sheet when the printer asks and press OK on the printer."] }
+        if let weakLink {
+            lines += ["", "Poor connection: \(weakLink). A large print can take much longer and pause between passes."]
+        }
+        return lines
     }
 
     func print() {
