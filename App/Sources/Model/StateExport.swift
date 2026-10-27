@@ -13,6 +13,18 @@ struct RemoteState: Encodable, Equatable {
         let edges: [String]
     }
 
+    struct Link: Encodable, Equatable {
+        /// good, fair or poor.
+        let rating: String
+        let signal: Int?
+        let linkQuality: Int?
+        let checks: Int
+        let answered: Int
+        let averageSeconds: Double
+        let causes: [String]
+        let fixes: [String]
+    }
+
     struct Printer: Encodable, Equatable {
         let queue: String?
         let connection: String?
@@ -21,6 +33,8 @@ struct RemoteState: Encodable, Equatable {
         let ink: [String: Int]
         let alert: String?
         let wifiSignal: Int?
+        /// How steady the link to a network printer is. Nil for USB and while the printer does not answer.
+        let link: Link?
     }
 
     struct Settings: Encodable, Equatable {
@@ -138,7 +152,14 @@ extension AppModel {
                 warnings: status.reasons,
                 ink: Dictionary(status.markers.compactMap { m in m.level.map { (m.name, $0) } }, uniquingKeysWith: { a, _ in a }),
                 alert: printerAlert.map { "\($0.title): \($0.message)" },
-                wifiSignal: status.remoteUI?.signal
+                wifiSignal: status.remoteUI?.signal,
+                link: connection.map { c in
+                    RemoteState.Link(
+                        rating: c.rating.rawValue, signal: c.signal, linkQuality: c.linkQuality, checks: c.checks,
+                        answered: c.answered, averageSeconds: (c.averageSeconds * 10).rounded() / 10,
+                        causes: c.causes, fixes: c.fixes
+                    )
+                }
             ),
             settings: RemoteState.Settings(
                 paper: paper.map { RemoteState.Option(id: $0.id, name: $0.label) },

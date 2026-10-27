@@ -7,7 +7,7 @@ A macOS app for printing photos on Canon photo printers. An open alternative to 
 - **Layouts:** one image per sheet, grids, contact sheets with captions. Drag to move the crop, drop images onto cells.
 - **Color:** 16-bit conversion into the paper profile, softproof with paper white. Canon's profiles per media type, or the paper maker's own (e.g. Tecco, Hahnemühle).
 - **Printing:** straight to Canon's driver with the right media type, quality and margins. The driver's rules apply, e.g. no borderless on plain paper.
-- **Printer status:** ink levels, Wi-Fi signal, maintenance cartridge, and errors with Canon's support code and help link.
+- **Printer status:** ink levels, maintenance cartridge, and errors with Canon's support code and help link. A connection rating (Wi-Fi signal, link quality, dropouts) says why a print may crawl and what helps. The print card shows how long a job took.
 - **Remote control:** scripts can set up a sheet via `printlab://`. Printing stays a button press.
 
 Print Lab is not affiliated with Canon.
