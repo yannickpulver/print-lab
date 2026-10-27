@@ -18,6 +18,8 @@ Print Lab is not affiliated with Canon.
 brew install yannickpulver/tap/print-lab
 ```
 
+Or download `Print-Lab.zip` from the [latest release](https://github.com/yannickpulver/print-lab/releases/latest).
+
 Needs macOS 26, Canon's IJ driver for your printer, and the printer added in System Settings → Printers & Scanners. Tested on the PRO-1000; other IJ printers (e.g. PRO-300, PRO-200) get their options from their own driver.
 
 ## Remote control
