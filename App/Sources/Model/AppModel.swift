@@ -92,6 +92,26 @@ final class AppModel {
 
     var paperProfile: CanonDriver.PaperProfile? { driver?.profile(for: sheet.print) }
 
+    /// The paper in the printer, read from its profile, e.g. "Hahnemühle Photo Rag (MK)".
+    var paperName: String? { paperProfile.map { CanonDriver.displayName(forProfileNamed: $0.fileName) } }
+
+    /// Picks a paper maker's profile together with the media type it was made for, when known.
+    func choosePaper(profileAt path: String) {
+        var settings = sheet.print
+        settings.customProfilePath = path
+        let fileName = URL(fileURLWithPath: path).lastPathComponent
+        if let media = driver?.mediaType(forProfileNamed: fileName) { settings.mediaTypeID = media.id }
+        sheet.print = settings
+    }
+
+    /// Picks a Canon paper: its media type with Canon's profile.
+    func choosePaper(canonMedia mediaID: String) {
+        var settings = sheet.print
+        settings.customProfilePath = nil
+        settings.mediaTypeID = mediaID
+        sheet.print = settings
+    }
+
     var conflicts: [String] { driver?.conflicts(for: sheet.print) ?? [] }
 
     var marginPlan: CanonDriver.MarginPlan? {
@@ -373,7 +393,7 @@ final class AppModel {
         confirmingPrint = true
     }
 
-    /// What the confirmation lists: paper, media, profile, quality, margins, feed and image count.
+    /// What the confirmation lists: paper, preset, size, media, profile, quality, margins, feed and image count.
     var printSummary: [String] {
         guard let driver else { return [] }
         let paper = driver.paper(sheet.print.paperID)?.label ?? sheet.print.paperID
@@ -388,7 +408,8 @@ final class AppModel {
         let images = sheet.cells.filter { $0.imageID != nil }.count
         let sheets = Set(sheet.cells.filter { $0.imageID != nil }.map(\.page)).count
         let manualFeed = source?.localizedCaseInsensitiveContains("Manual") == true
-        return [
+        let head: [String] = [paperName, activePreset.map { "Preset: \($0.name)" }].compactMap { $0 }
+        return head + [
             "\(paper), \(orientation)" + (source.map { " · \($0)" } ?? ""),
             media,
             "Profile: \(paperProfile?.fileName ?? "none")",

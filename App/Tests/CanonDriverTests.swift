@@ -116,8 +116,21 @@ struct CanonDriverTests {
         #expect(driver.mediaType(forProfileNamed: "TECCO_pro1000_PD190_HWFAP.icc")?.name == "Heavyweight Fine Art Paper")
         #expect(driver.mediaType(forProfileNamed: "TECCO_pro1000_PPG250_PPPS.icc")?.name == "Photo Paper Plus Semi-gloss")
         #expect(driver.mediaType(forProfileNamed: "CN_PRO-1000_500_BarytaPhotoPaper-P.icc")?.id == "17448")
-        // Hahnemühle names say nothing about the media type.
-        #expect(driver.mediaType(forProfileNamed: "HFA_CanPro1000_MK_PhotoRag.icc") == nil)
+        #expect(driver.mediaType(forProfileNamed: "Hanemuehle_CanPro1000_PK_FAPearl_BarytaSetting_BarytaPapier.icc")?.name
+            == "Baryta Photo Paper")
+        // No media code in the name: the media type Canon lists for the paper.
+        #expect(driver.mediaType(forProfileNamed: "HFA_CanPro1000_MK_PhotoRag.icc")?.name == "Highest Density Fine Art Paper")
+        #expect(driver.mediaType(forProfileNamed: "My Paper.icc") == nil)
+    }
+
+    @Test func tellsProfilesForThisPrinter() {
+        #expect(driver.model == "PRO-1000")
+        #expect(driver.isForThisPrinter(profileNamed: "HFA_CanPro1000_MK_PhotoRag.icc"))
+        #expect(driver.isForThisPrinter(profileNamed: "ILFORD_CANpro-1000_GPSGP_PPPG2.icc"))
+        #expect(driver.isForThisPrinter(profileNamed: "TECCO_pro1000_PD190_HWFAP.icc"))
+        #expect(!driver.isForThisPrinter(profileNamed: "TECCO_pro300_PD190_HWFAP.icc"))
+        #expect(!driver.isForThisPrinter(profileNamed: "HFA_CanPro10000_MK_PhotoRag.icc"))
+        #expect(!driver.isForThisPrinter(profileNamed: "My Paper.icc"))
     }
 
     @Test(arguments: [
@@ -126,9 +139,12 @@ struct CanonDriverTests {
         ("CN_PRO-200_S1_HeavyweightFineArtPaper-P.icc", "Canon Heavyweight Fine Art Paper"),
         ("CN_PRO-200S_S1MkII_PhotoPaperPlusSemi-gloss.icc", "Canon Photo Paper Plus Semi-gloss"),
         ("HFA_CanPro1000_MK_PhotoRag.icc", "Hahnemühle Photo Rag (MK)"),
-        ("Hanemuehle_CanPro1000_PK_FAPearl_BarytaSetting_BarytaPapier.icc", "Hahnemühle FA Pearl Baryta Setting Baryta Papier (PK)"),
-        ("TECCO_pro1000_PD190_HWFAP.icc", "Tecco PD190"),
-        ("ILFORD_CANpro-1000_GPTC_HDFAP.icc", "Ilford GPTC"),
+        ("Hanemuehle_CanPro1000_MK_PhotoRag_HDFAP.icc", "Hahnemühle Photo Rag (MK)"),
+        ("Hanemuehle_CanPro1000_PK_FAPearl_BarytaSetting_BarytaPapier.icc", "Hahnemühle FineArt Pearl (PK)"),
+        ("TECCO_pro1000_PD190_HWFAP.icc", "Tecco Duo Matt PD190"),
+        ("TECCO_pro1000_PFR295_HWFAP.icc", "Tecco FineArt Rag PFR295"),
+        ("ILFORD_CANpro-1000_GPTC_HDFAP.icc", "Ilford Galerie Textured Cotton Rag"),
+        ("ILFORD_CANpro-1000_GPSPP_PPPS.icc", "Ilford Galerie Smooth Pearl"),
         ("My Paper.icc", "My Paper"),
     ])
     func readableProfileNames(fileName: String, expected: String) {
