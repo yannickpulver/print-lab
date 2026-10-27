@@ -7,11 +7,11 @@ import Foundation
 enum SheetRenderer {
     static let captionFontSizeMM = 2.6
 
-    /// Draws all cells. `images` maps image ids to the pixels to draw (proofed or print-ready).
+    /// Draws the cells of one page. `images` maps image ids to the pixels to draw (proofed or print-ready).
     static func drawCells(
-        _ sheet: Sheet, images: [UUID: CGImage], captions: [UUID: String], in ctx: CGContext
+        _ sheet: Sheet, page: Int, images: [UUID: CGImage], captions: [UUID: String], in ctx: CGContext
     ) {
-        for cell in sheet.cells {
+        for cell in sheet.cells(onPage: page) {
             guard let id = cell.imageID, let image = images[id] else { continue }
             drawImage(image, in: cell, ctx: ctx)
             if sheet.layout.captions, let caption = captions[id] {
@@ -93,7 +93,7 @@ enum SheetRenderer {
         }
     }
 
-    /// Writes a one-page PDF ready for the Canon driver.
+    /// Writes a PDF ready for the Canon driver, one PDF page per sheet with images.
     static func writePDF(
         _ sheet: Sheet, pageSize: CGSize, images: [UUID: CGImage], captions: [UUID: String], to url: URL
     ) throws {
@@ -101,10 +101,12 @@ enum SheetRenderer {
         guard let ctx = CGContext(url as CFURL, mediaBox: &box, nil) else {
             throw CocoaError(.fileWriteUnknown)
         }
-        ctx.beginPDFPage(nil)
-        ctx.concatenate(pageTransform(pageSize: pageSize, orientation: sheet.orientation))
-        drawCells(sheet, images: images, captions: captions, in: ctx)
-        ctx.endPDFPage()
+        for page in 0..<sheet.pageCount where sheet.cells(onPage: page).contains(where: { $0.imageID != nil }) {
+            ctx.beginPDFPage(nil)
+            ctx.concatenate(pageTransform(pageSize: pageSize, orientation: sheet.orientation))
+            drawCells(sheet, page: page, images: images, captions: captions, in: ctx)
+            ctx.endPDFPage()
+        }
         ctx.closePDF()
     }
 }

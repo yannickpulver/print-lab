@@ -59,6 +59,8 @@ struct LayoutSpec: Codable, Hashable, Sendable {
 struct Cell: Identifiable, Codable, Hashable, Sendable {
     var id = UUID()
     var frame: CGRect
+    /// Zero-based page of the print job.
+    var page = 0
     var imageID: UUID?
     var fit: Fit = .fill
     /// Clockwise quarter turns.
@@ -72,6 +74,29 @@ struct Sheet: Codable, Hashable, Sendable {
     var orientation: Orientation = .portrait
     var layout = LayoutSpec()
     var cells: [Cell] = []
+
+    var pageCount: Int { (cells.map(\.page).max() ?? 0) + 1 }
+
+    func cells(onPage page: Int) -> [Cell] { cells.filter { $0.page == page } }
+
+    /// Adds an empty page with the cells of the first one.
+    mutating func appendPage() {
+        let page = pageCount
+        cells += cells(onPage: 0).map { Cell(frame: $0.frame, page: page) }
+    }
+
+    /// Drops pages without images and renumbers the rest. One page always stays.
+    mutating func removeEmptyPages() {
+        let used = Set(cells.filter { $0.imageID != nil }.map(\.page)).sorted()
+        let keep = used.isEmpty ? [0] : used
+        guard keep.count < pageCount else { return }
+        cells = cells.compactMap { cell in
+            guard let page = keep.firstIndex(of: cell.page) else { return nil }
+            var cell = cell
+            cell.page = page
+            return cell
+        }
+    }
 }
 
 enum Units {
@@ -169,17 +194,23 @@ enum LayoutEngine {
     }
 
     /// Rebuilds the cells of a sheet, keeping image assignments in order.
+    /// Single image and grid get as many pages as their images need; the contact sheet grows on one page.
     static func relayout(_ sheet: inout Sheet, geometry: SheetGeometry, imageIDs: [UUID]) {
         let content = geometry.contentRect(margins: sheet.layout.margins)
         let assigned = sheet.cells.compactMap(\.imageID)
         let ids = sheet.layout.template == .contactSheet ? imageIDs : assigned
         let frames = frames(spec: sheet.layout, content: content, imageCount: ids.count)
+        let pages = frames.isEmpty ? 1 : max(1, Int((Double(ids.count) / Double(frames.count)).rounded(.up)))
         var cells: [Cell] = []
-        for (i, frame) in frames.enumerated() {
-            var cell = i < sheet.cells.count ? sheet.cells[i] : Cell(frame: frame)
-            cell.frame = frame
-            cell.imageID = i < ids.count ? ids[i] : nil
-            cells.append(cell)
+        for page in 0..<pages {
+            for frame in frames {
+                let i = cells.count
+                var cell = i < sheet.cells.count ? sheet.cells[i] : Cell(frame: frame)
+                cell.frame = frame
+                cell.page = page
+                cell.imageID = i < ids.count ? ids[i] : nil
+                cells.append(cell)
+            }
         }
         sheet.cells = cells
     }

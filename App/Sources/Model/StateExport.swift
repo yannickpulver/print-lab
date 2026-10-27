@@ -47,6 +47,7 @@ struct RemoteState: Encodable, Equatable {
 
     struct CellInfo: Encodable, Equatable {
         let index: Int
+        let page: Int
         let frameMM: [Double]
         let image: String?
         let fit: String
@@ -60,6 +61,8 @@ struct RemoteState: Encodable, Equatable {
     let layout: LayoutSpec
     let images: [Image]
     let cells: [CellInfo]
+    /// Page shown on the canvas, zero-based.
+    let page: Int
     let selectedCell: Int?
     let conflicts: [String]
     let marginNotes: [String]
@@ -117,6 +120,7 @@ extension AppModel {
             }
             return RemoteState.CellInfo(
                 index: index,
+                page: cell.page,
                 frameMM: [cell.frame.minX, cell.frame.minY, cell.frame.width, cell.frame.height].map { (Double($0) * 10).rounded() / 10 },
                 image: cell.imageID.flatMap { names[$0] },
                 fit: cell.fit.rawValue,
@@ -156,6 +160,7 @@ extension AppModel {
                                   pixels: "\(Int(item.pixelSize.width))x\(Int(item.pixelSize.height))")
             },
             cells: cells,
+            page: currentPage,
             selectedCell: sheet.cells.firstIndex { $0.id == selectedCellID },
             conflicts: conflicts,
             marginNotes: marginPlan?.notes ?? [],

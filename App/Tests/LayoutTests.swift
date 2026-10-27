@@ -73,6 +73,58 @@ struct LayoutTests {
         #expect(sheet.cells.compactMap(\.imageID) == [a, b])
     }
 
+    @Test func relayoutAddsPagesWhenImagesExceedTheGrid() {
+        let g = SheetGeometry(pageSize: a4, orientation: .portrait)
+        var sheet = Sheet(print: PrintSettings(paperID: "A4", margin: .standard, mediaTypeID: "63", qualityID: "10"))
+        sheet.layout.template = .single
+        LayoutEngine.relayout(&sheet, geometry: g, imageIDs: [])
+        let ids = [UUID(), UUID(), UUID(), UUID(), UUID()]
+        for (i, id) in ids.enumerated() {
+            if i > 0 { sheet.appendPage() }
+            sheet.cells[i].imageID = id
+        }
+        #expect(sheet.pageCount == 5)
+
+        sheet.layout.template = .grid
+        LayoutEngine.relayout(&sheet, geometry: g, imageIDs: [])
+        #expect(sheet.pageCount == 2)
+        #expect(sheet.cells.count == 8)
+        #expect(sheet.cells(onPage: 1).compactMap(\.imageID) == [ids[4]])
+        #expect(sheet.cells.compactMap(\.imageID) == ids)
+    }
+
+    @Test func emptyPagesGoAwayButOneStays() {
+        var sheet = Sheet(print: PrintSettings(paperID: "A4", margin: .standard, mediaTypeID: "63", qualityID: "10"))
+        sheet.cells = [Cell(frame: CGRect(x: 0, y: 0, width: 10, height: 10))]
+        sheet.appendPage()
+        sheet.appendPage()
+        let id = UUID()
+        sheet.cells[2].imageID = id
+        sheet.removeEmptyPages()
+        #expect(sheet.cells.count == 1)
+        #expect(sheet.cells[0].page == 0 && sheet.cells[0].imageID == id)
+        sheet.cells[0].imageID = nil
+        sheet.removeEmptyPages()
+        #expect(sheet.pageCount == 1 && sheet.cells.count == 1)
+    }
+
+    @Test func pdfHasOnePagePerSheetWithImages() throws {
+        var sheet = Sheet(print: PrintSettings(paperID: "A4", margin: .standard, mediaTypeID: "63", qualityID: "10"))
+        sheet.cells = [Cell(frame: CGRect(x: 10, y: 10, width: 50, height: 50))]
+        sheet.appendPage()
+        sheet.appendPage()
+        let a = UUID(), b = UUID()
+        sheet.cells[0].imageID = a
+        sheet.cells[2].imageID = b
+        let pixel = try #require(CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                           space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                           bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)?.makeImage())
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try SheetRenderer.writePDF(sheet, pageSize: a4.size, images: [a: pixel, b: pixel], captions: [:], to: url)
+        #expect(CGPDFDocument(url as CFURL)?.numberOfPages == 2)
+    }
+
     @Test func fillCoversCellAndFitStaysInside() {
         var cell = Cell(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
         let image = CGSize(width: 3000, height: 2000)

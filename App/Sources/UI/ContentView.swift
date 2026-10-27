@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @Environment(AppModel.self) private var model
     @State private var showInspector = true
+    @State private var isDropTargeted = false
 
     var body: some View {
         @Bindable var model = model
@@ -24,6 +25,17 @@ struct ContentView: View {
                 } label: {
                     Label { Text("Inspector") } icon: { TablerIcon("layout-sidebar-right", size: 18) }
                 }
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+            ImageDrop.handle(providers, model: model)
+        }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.accentColor, lineWidth: 3)
+                    .padding(4)
+                    .allowsHitTesting(false)
             }
         }
         .fileImporter(

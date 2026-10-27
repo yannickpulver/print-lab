@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The sheet as it will print: paper, margins, cells and softproofed images.
 struct SheetCanvasView: View {
@@ -25,6 +26,11 @@ struct SheetCanvasView: View {
             }
         }
         .background(Color(nsColor: .underPageBackgroundColor))
+        .overlay(alignment: .bottom) {
+            if model.geometry != nil, model.sheet.pageCount > 1 {
+                PageBar()
+            }
+        }
         .overlay(alignment: .top) {
             if let alert = model.printerAlert {
                 PrinterAlertBanner(alert: alert)
@@ -34,10 +40,29 @@ struct SheetCanvasView: View {
         .animation(.default, value: model.printerAlert)
         .contentShape(Rectangle())
         .onTapGesture { model.selectedCellID = nil }
-        .dropDestination(for: URL.self) { urls, _ in
-            model.addImages(urls)
-            return true
+    }
+}
+
+/// Pages of the print job: one sheet of paper each.
+private struct PageBar: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button { model.showPage(model.currentPage - 1) } label: { TablerIcon("chevron-left") }
+                .disabled(model.currentPage == 0)
+                .help("Previous page")
+            Text("Page \(model.currentPage + 1) of \(model.sheet.pageCount)")
+                .monospacedDigit()
+            Button { model.showPage(model.currentPage + 1) } label: { TablerIcon("chevron-right") }
+                .disabled(model.currentPage >= model.sheet.pageCount - 1)
+                .help("Next page")
         }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: Capsule())
+        .padding(.bottom, 8)
     }
 }
 
@@ -53,13 +78,13 @@ private struct SheetView: View {
                     cg.scaleBy(x: scale, y: scale)
                     drawGuides(cg)
                     SheetRenderer.drawCells(
-                        model.sheet, images: model.displayImages,
+                        model.sheet, page: model.currentPage, images: model.displayImages,
                         captions: Dictionary(uniqueKeysWithValues: model.library.map { ($0.id, $0.name) }),
                         in: cg
                     )
                 }
             }
-            ForEach(model.sheet.cells) { cell in
+            ForEach(model.sheet.cells(onPage: model.currentPage)) { cell in
                 CellOverlay(cell: cell, scale: scale)
                     .frame(width: cell.frame.width * scale, height: cell.frame.height * scale)
                     .offset(x: cell.frame.minX * scale, y: cell.frame.minY * scale)
@@ -99,10 +124,11 @@ private struct CellOverlay: View {
         let selected = model.selectedCellID == cell.id
         ZStack {
             if cell.imageID == nil {
+                // Fixed tones: the paper stays light in dark mode.
                 Rectangle()
-                    .fill(Color.secondary.opacity(isTargeted ? 0.2 : 0.07))
+                    .fill(Color.black.opacity(isTargeted ? 0.12 : 0.04))
                 TablerIcon("photo-plus", size: min(28, cell.frame.width * scale / 4))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.black.opacity(0.25))
             } else if isTargeted {
                 Rectangle().fill(Color.accentColor.opacity(0.2))
             }
@@ -112,11 +138,9 @@ private struct CellOverlay: View {
         .contentShape(Rectangle())
         .onTapGesture { model.selectedCellID = cell.id }
         .gesture(cropDrag)
-        .dropDestination(for: String.self) { items, _ in
-            guard let id = items.first.flatMap(UUID.init(uuidString:)) else { return false }
-            model.place(id, inCell: cell.id)
-            return true
-        } isTargeted: { isTargeted = $0 }
+        .onDrop(of: ImageDrop.types, isTargeted: $isTargeted) { providers in
+            ImageDrop.handle(providers, model: model, cell: cell.id)
+        }
         .help(cell.fit == .fill && cell.imageID != nil ? "Drag to move the crop" : "")
     }
 
@@ -139,5 +163,40 @@ private struct CellOverlay: View {
                 }
             }
             .onEnded { _ in dragStart = nil }
+    }
+}
+
+/// Drops of files from Finder, or of an image from the list (its id as text).
+@MainActor
+enum ImageDrop {
+    /// For cells. Elsewhere only files drop.
+    static let types: [UTType] = [.fileURL, .plainText]
+
+    /// Files get added, the first one into `cell`. A list image goes into `cell`.
+    static func handle(_ providers: [NSItemProvider], model: AppModel, cell: UUID? = nil) -> Bool {
+        let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        if !files.isEmpty {
+            Task {
+                var urls: [URL] = []
+                for provider in files {
+                    if let url = await load(URL.self, from: provider) { urls.append(url) }
+                }
+                model.addImages(urls.filter(\.isFileURL), into: cell)
+            }
+            return true
+        }
+        guard let cell, let provider = providers.first else { return false }
+        Task {
+            if let text = await load(String.self, from: provider), let id = UUID(uuidString: text) {
+                model.place(id, inCell: cell)
+            }
+        }
+        return true
+    }
+
+    private static func load<T: Transferable & Sendable>(_ type: T.Type, from provider: NSItemProvider) async -> T? {
+        await withCheckedContinuation { continuation in
+            _ = provider.loadTransferable(type: type) { continuation.resume(returning: try? $0.get()) }
+        }
     }
 }
