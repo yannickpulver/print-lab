@@ -37,6 +37,8 @@ struct CanonDriver: Sendable {
         /// Borderless bleed. Nil keeps the driver default; "0" keeps wanted margins exact.
         let borderlessExtension: String?
         let notes: [String]
+        /// Canon's fine art minimum per side when the margins go below it: the printer may leave marks there.
+        var artMargins: EdgeInsetsMM? = nil
     }
 
     struct Paper: Identifiable, Hashable, Sendable {
@@ -128,36 +130,35 @@ struct CanonDriver: Sendable {
         guard let paper = paper(paperID) else {
             return MarginPlan(margin: .standard, cancelMarginRegulation: false, borderlessExtension: nil, notes: [])
         }
+        func minimum(_ margin: Margin) -> EdgeInsetsMM? {
+            paper.variants[margin].map { SheetGeometry(pageSize: $0, orientation: orientation).minimumMargins }
+        }
         func fits(_ margin: Margin) -> Bool {
-            guard let page = paper.variants[margin] else { return false }
-            let minimum = SheetGeometry(pageSize: page, orientation: orientation).minimumMargins
-            let e = 0.05
-            return margins.top >= minimum.top - e && margins.left >= minimum.left - e
-                && margins.bottom >= minimum.bottom - e && margins.right >= minimum.right - e
+            guard let minimum = minimum(margin) else { return false }
+            return margins.covers(minimum)
         }
         let fineArt = isFineArt(mediaID)
-        let belowArtMargin = "Below Canon's 25 mm fine art margin: the printer may leave marks near the paper edge."
+        let artMargins = fineArt ? minimum(.artMargin) : nil
 
         if fineArt, fits(.artMargin) {
             return MarginPlan(margin: .artMargin, cancelMarginRegulation: false, borderlessExtension: nil, notes: [])
         }
         if fits(.standard) {
             return MarginPlan(margin: .standard, cancelMarginRegulation: fineArt, borderlessExtension: nil,
-                              notes: fineArt ? [belowArtMargin] : [])
+                              notes: [], artMargins: artMargins)
         }
         if let page = paper.variants[.borderless],
            ppd.conflicts(in: ["PageSize": page.name, "CNIJMediaType": mediaID]).isEmpty {
             let bleed = min(margins.top, margins.left, margins.bottom, margins.right) < 0.05
             return MarginPlan(margin: .borderless, cancelMarginRegulation: fineArt,
-                              borderlessExtension: bleed ? nil : "0", notes: fineArt ? [belowArtMargin] : [])
+                              borderlessExtension: bleed ? nil : "0", notes: [], artMargins: artMargins)
         }
         let name = mediaType(mediaID)?.name ?? "this media type"
-        let minimum = paper.variants[.standard].map { SheetGeometry(pageSize: $0, orientation: orientation).minimumMargins }
-        let smallest = minimum.map { String(format: " The smallest margins are %.0f–%.0f mm.",
+        let smallest = minimum(.standard).map { String(format: " The smallest margins are %.0f–%.0f mm.",
                                             min($0.top, $0.left, $0.bottom, $0.right),
                                             max($0.top, $0.left, $0.bottom, $0.right)) } ?? ""
         return MarginPlan(margin: .standard, cancelMarginRegulation: fineArt, borderlessExtension: nil,
-                          notes: ["Borderless is not available with \(name).\(smallest)"])
+                          notes: ["Borderless is not available with \(name).\(smallest)"], artMargins: artMargins)
     }
 
     func pageSize(for settings: PrintSettings) -> PPDFile.PageSize? {

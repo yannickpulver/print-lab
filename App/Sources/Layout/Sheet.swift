@@ -34,6 +34,13 @@ struct EdgeInsetsMM: Codable, Hashable, Sendable {
     var right: Double
 
     static func all(_ v: Double) -> EdgeInsetsMM { EdgeInsetsMM(top: v, left: v, bottom: v, right: v) }
+
+    /// At least `minimum` on every side, with a little slack for rounding.
+    func covers(_ minimum: EdgeInsetsMM) -> Bool {
+        let e = 0.05
+        return top >= minimum.top - e && left >= minimum.left - e
+            && bottom >= minimum.bottom - e && right >= minimum.right - e
+    }
 }
 
 struct LayoutSpec: Codable, Hashable, Sendable {

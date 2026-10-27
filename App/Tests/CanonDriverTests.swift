@@ -59,6 +59,7 @@ struct CanonDriverTests {
         #expect(plan.margin == .standard)
         #expect(plan.cancelMarginRegulation == false)
         #expect(plan.notes.isEmpty)
+        #expect(plan.artMargins == nil)
     }
 
     @Test func smallMarginsSwitchToBorderlessWithoutBleed() {
@@ -86,6 +87,7 @@ struct CanonDriverTests {
         let plan = driver.marginPlan(paperID: "A4", mediaID: "75", orientation: .portrait, margins: .all(25))
         #expect(plan.margin == .artMargin)
         #expect(plan.cancelMarginRegulation == false)
+        #expect(plan.artMargins == nil)
     }
 
     @Test func fineArtBelow25mmCancelsMarginRegulation() {
@@ -95,7 +97,9 @@ struct CanonDriverTests {
         let plan = driver.marginPlan(paperID: "A4", mediaID: "75", orientation: .portrait, margins: .all(10))
         settings.apply(plan)
         #expect(plan.margin == .standard)
-        #expect(plan.notes.count == 1)
+        // Canon's 25 mm sits at the portrait top and bottom only.
+        #expect(plan.artMargins.map { $0.top.rounded() == 25 && $0.bottom.rounded() == 25 } == true)
+        #expect(plan.artMargins.map { $0.left < 25 && $0.right < 25 } == true)
         #expect(driver.cupsOptions(for: settings)["CNIJCancelMarginRegulation"] == "2")
     }
 

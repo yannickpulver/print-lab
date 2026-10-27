@@ -157,6 +157,7 @@ private struct Hint: View {
 struct MillimeterField: View {
     let title: String
     @Binding var value: Double
+    var showsUnit = true
 
     var body: some View {
         HStack(spacing: 4) {
@@ -165,7 +166,7 @@ struct MillimeterField: View {
                 .multilineTextAlignment(.trailing)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 56)
-            Text("mm").foregroundStyle(.secondary)
+            if showsUnit { Text("mm").foregroundStyle(.secondary) }
         }
         .fixedSize()
     }
@@ -412,7 +413,9 @@ private struct LayoutCard: View {
 
             Divider()
 
-            MarginsEditor(margins: $model.sheet.layout.margins)
+            MarginsEditor(margins: $model.sheet.layout.margins,
+                          paperSize: model.geometry?.paperSize ?? CGSize(width: 210, height: 297),
+                          artMargins: model.marginPlan?.artMargins)
             ForEach(model.marginPlan?.notes ?? [], id: \.self) { note in
                 Hint(icon: "info-circle", text: note)
             }
@@ -427,6 +430,9 @@ private struct LayoutCard: View {
 
 private struct MarginsEditor: View {
     @Binding var margins: EdgeInsetsMM
+    let paperSize: CGSize
+    /// Set when the margins go below Canon's fine art margin.
+    let artMargins: EdgeInsetsMM?
     @State private var individual = false
 
     var body: some View {
@@ -450,22 +456,97 @@ private struct MarginsEditor: View {
                 && margins.bottom == margins.right)
         }
         if individual {
-            Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 8) {
+            // Each field sits at the side of the page it sets.
+            Grid(horizontalSpacing: 10, verticalSpacing: 6) {
                 GridRow {
-                    Text("Top").foregroundStyle(.secondary)
-                    MillimeterField(title: "Top", value: $margins.top)
-                    Text("Bottom").foregroundStyle(.secondary)
-                    MillimeterField(title: "Bottom", value: $margins.bottom)
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    MillimeterField(title: "Top", value: $margins.top, showsUnit: false)
                 }
                 GridRow {
-                    Text("Left").foregroundStyle(.secondary)
-                    MillimeterField(title: "Left", value: $margins.left)
-                    Text("Right").foregroundStyle(.secondary)
-                    MillimeterField(title: "Right", value: $margins.right)
+                    MillimeterField(title: "Left", value: $margins.left, showsUnit: false)
+                    MarginsDiagram(paperSize: paperSize, margins: margins, artMargins: artMargins)
+                    MillimeterField(title: "Right", value: $margins.right, showsUnit: false)
+                }
+                GridRow {
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    MillimeterField(title: "Bottom", value: $margins.bottom, showsUnit: false)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .frame(maxWidth: .infinity)
+        } else if artMargins != nil {
+            MarginsDiagram(paperSize: paperSize, margins: margins, artMargins: artMargins)
+                .frame(maxWidth: .infinity)
         }
+        if artMargins != nil {
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(MarginsDiagram.artMarginColor)
+                    .frame(width: 10, height: 10)
+                Text("Fine art margin: may leave marks")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+/// The page with its content area inset by the margins, to scale. Thin margins stay visible.
+/// Sides closer to the edge than Canon's fine art margin show that margin in orange.
+private struct MarginsDiagram: View {
+    static let artMarginColor = Color.orange.opacity(0.7)
+
+    let paperSize: CGSize
+    let margins: EdgeInsetsMM
+    let artMargins: EdgeInsetsMM?
+    var height: CGFloat = 72
+
+    var body: some View {
+        let scale = height / max(paperSize.width, paperSize.height)
+        let size = CGSize(width: (paperSize.width * scale).rounded(), height: (paperSize.height * scale).rounded())
+        let top = max(margins.top * scale, 2), left = max(margins.left * scale, 2)
+        let bottom = max(margins.bottom * scale, 2), right = max(margins.right * scale, 2)
+        let content = CGRect(x: left, y: top, width: max(size.width - left - right, 0),
+                             height: max(size.height - top - bottom, 0))
+        Canvas { context, size in
+            let paper = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 1.5)
+            context.fill(paper, with: .color(.white))
+            context.fill(Path(content), with: .color(Color(white: 0.55)))
+            if let art = artMargins {
+                let e = 0.05
+                if margins.top < art.top - e {
+                    context.fill(Path(CGRect(x: 0, y: 0, width: size.width, height: art.top * scale)),
+                                 with: .color(Self.artMarginColor))
+                }
+                if margins.bottom < art.bottom - e {
+                    let h = art.bottom * scale
+                    context.fill(Path(CGRect(x: 0, y: size.height - h, width: size.width, height: h)),
+                                 with: .color(Self.artMarginColor))
+                }
+                if margins.left < art.left - e {
+                    context.fill(Path(CGRect(x: 0, y: 0, width: art.left * scale, height: size.height)),
+                                 with: .color(Self.artMarginColor))
+                }
+                if margins.right < art.right - e {
+                    let w = art.right * scale
+                    context.fill(Path(CGRect(x: size.width - w, y: 0, width: w, height: size.height)),
+                                 with: .color(Self.artMarginColor))
+                }
+            }
+            context.stroke(paper, with: .color(.black.opacity(0.2)), lineWidth: 0.5)
+        }
+        .overlay(alignment: .topLeading) {
+            Text("mm")
+                .font(.caption2)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .foregroundStyle(.white)
+                .frame(width: content.width, height: content.height)
+                .offset(x: content.minX, y: content.minY)
+        }
+        .frame(width: size.width, height: size.height)
+        .frame(width: height, height: height)
     }
 }
 

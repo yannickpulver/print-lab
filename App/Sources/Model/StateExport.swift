@@ -63,6 +63,8 @@ struct RemoteState: Encodable, Equatable {
     let selectedCell: Int?
     let conflicts: [String]
     let marginNotes: [String]
+    /// Canon's fine art margin per side, when the margins go below it.
+    let artMargins: EdgeInsetsMM?
     let readyToPrint: Bool
     let job: String?
     let lastCommand: CommandResult?
@@ -157,6 +159,7 @@ extension AppModel {
             selectedCell: sheet.cells.firstIndex { $0.id == selectedCellID },
             conflicts: conflicts,
             marginNotes: marginPlan?.notes ?? [],
+            artMargins: marginPlan?.artMargins,
             readyToPrint: canPrint,
             job: isPreparingJob ? "preparing" : job.map { "\($0.id): \($0.state)" },
             lastCommand: lastCommand,
