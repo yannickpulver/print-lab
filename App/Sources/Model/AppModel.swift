@@ -17,6 +17,9 @@ struct LibraryItem: Identifiable, @unchecked Sendable {
 struct JobInfo: Hashable {
     let id: Int32
     var state: JobState
+    /// When the job went to CUPS, and when it reached a final state.
+    let started: Date
+    var finished: Date?
 }
 
 @MainActor
@@ -26,7 +29,7 @@ final class AppModel {
 
     var queues: [PrinterQueue] = []
     var queue: PrinterQueue? {
-        didSet { if oldValue != queue { loadDriver() } }
+        didSet { if oldValue != queue { connectionChecks = []; loadDriver() } }
     }
     private(set) var driver: CanonDriver?
 
@@ -56,6 +59,8 @@ final class AppModel {
 
     private(set) var status = PrinterStatus()
     private(set) var job: JobInfo?
+    /// The last status requests to a network printer, for `connection`.
+    private(set) var connectionChecks: [ConnectionQuality.Check] = []
     private(set) var isPreparingJob = false
     /// Images to draw in the sheet preview, by library id.
     private(set) var displayImages: [UUID: CGImage] = [:]
@@ -97,6 +102,13 @@ final class AppModel {
     var marginPlan: CanonDriver.MarginPlan? {
         driver?.marginPlan(paperID: sheet.print.paperID, mediaID: sheet.print.mediaTypeID,
                            orientation: sheet.orientation, margins: sheet.layout.margins)
+    }
+
+    /// How steady the link to a network printer is. Nil for USB.
+    var connection: ConnectionQuality? {
+        guard queue?.host != nil else { return nil }
+        return ConnectionQuality(signal: status.remoteUI?.signal, linkQuality: status.remoteUI?.linkQuality,
+                                 checks: connectionChecks)
     }
 
     var selectedCell: Cell? { sheet.cells.first { $0.id == selectedCellID } }
@@ -149,14 +161,20 @@ final class AppModel {
         guard let queue else { return }
         let job = self.job
         Task.detached {
+            let start = Date()
             var status = CUPSClient.status(of: queue)
+            let check = ConnectionQuality.Check(answered: status.state != .unknown, seconds: Date().timeIntervalSince(start))
             if let host = queue.host { status.remoteUI = await RemoteUIClient.shared.status(host: host) }
             let jobState = job.map { CUPSClient.jobState(id: $0.id, queue: queue.name) }
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.status = status
+                if queue.host != nil, self.queue == queue {
+                    self.connectionChecks = Array((self.connectionChecks + [check]).suffix(ConnectionQuality.window))
+                }
                 if let jobState, let current = self.job, current.id == job?.id, !current.state.isFinal {
                     self.job?.state = jobState
+                    if jobState.isFinal { self.job?.finished = Date() }
                 }
             }
         }
@@ -388,6 +406,7 @@ final class AppModel {
         let images = sheet.cells.filter { $0.imageID != nil }.count
         let sheets = Set(sheet.cells.filter { $0.imageID != nil }.map(\.page)).count
         let manualFeed = source?.localizedCaseInsensitiveContains("Manual") == true
+        let weakLink = connection.flatMap { $0.rating == .poor ? $0.causes.first : nil }
         return [
             "\(paper), \(orientation)" + (source.map { " · \($0)" } ?? ""),
             media,
@@ -396,6 +415,7 @@ final class AppModel {
             "Margins: \(margins) (\(sheet.print.margin.label))",
             (images == 1 ? "1 image" : "\(images) images") + (sheets > 1 ? " on \(sheets) sheets" : ""),
         ] + (manualFeed ? ["", "Manual feed: load the sheet when the printer asks and press OK on the printer."] : [])
+            + (weakLink.map { ["", "Poor connection: \($0). A large print can take much longer and pause between passes."] } ?? [])
     }
 
     func print() {
@@ -413,7 +433,7 @@ final class AppModel {
                 let id = try PrintJob.submit(request)
                 await MainActor.run { [weak self] in
                     self?.isPreparingJob = false
-                    self?.job = JobInfo(id: id, state: .pending)
+                    self?.job = JobInfo(id: id, state: .pending, started: Date())
                     self?.refreshStatus()
                 }
             } catch {
