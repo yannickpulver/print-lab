@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @Environment(AppModel.self) private var model
@@ -28,9 +29,8 @@ struct LibraryView: View {
                 }
             }
         }
-        .dropDestination(for: URL.self) { urls, _ in
-            model.addImages(urls)
-            return true
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            ImageDrop.handle(providers, model: model)
         }
         .toolbar {
             ToolbarItem {

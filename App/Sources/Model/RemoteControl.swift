@@ -12,7 +12,7 @@ import Foundation
 /// media, quality, source, drying, profile (auto | path | installed file name), template (single|grid|contactSheet), rows, columns, gap, margins,
 /// marginTop, marginLeft, marginBottom, marginRight (the printer mode follows the margins), captions, autorotate, intent (perceptual|relative),
 /// bpc, softproof, paperwhite, fit (fill|fit, all cells), fit.N, turns.N, crop.N (x,y in -1…1),
-/// select (cell index), preset (saved preset name), savePreset (saves the result under a name).
+/// select (cell index, shows its page), preset (saved preset name), savePreset (saves the result under a name).
 @MainActor
 enum RemoteControl {
     static let scheme = "printlab"
@@ -163,6 +163,7 @@ enum RemoteControl {
             let parts = key.split(separator: ".", maxSplits: 1).map(String.init)
             if key == "select" {
                 guard let i = Int(v), model.sheet.cells.indices.contains(i) else { errors.append("select: no cell \(v)"); continue }
+                model.showPage(model.sheet.cells[i].page)
                 model.selectedCellID = model.sheet.cells[i].id
                 continue
             }

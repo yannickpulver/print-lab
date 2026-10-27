@@ -45,6 +45,10 @@ final class AppModel {
     }
 
     var selectedCellID: UUID?
+    /// Page shown on the canvas.
+    var currentPage = 0 {
+        didSet { if selectedCell?.page != currentPage { selectedCellID = nil } }
+    }
     var showImporter = false
     var errorMessage: String?
     /// Result of the last `printlab://` command, written to the state file.
@@ -161,9 +165,10 @@ final class AppModel {
     // MARK: - Library
 
     /// Loads one image after the other: keeps the order and the memory use of 16-bit decoding low.
-    func addImages(_ urls: [URL], completion: (@MainActor () -> Void)? = nil) {
+    /// The first image goes into `cellID` when given, and the canvas shows its page.
+    func addImages(_ urls: [URL], into cellID: UUID? = nil, completion: (@MainActor () -> Void)? = nil) {
         Task.detached(priority: .userInitiated) {
-            for url in urls {
+            for (index, url) in urls.enumerated() {
                 let accessing = url.startAccessingSecurityScopedResource()
                 defer { if accessing { url.stopAccessingSecurityScopedResource() } }
                 do {
@@ -173,7 +178,9 @@ final class AppModel {
                         id: UUID(), url: url, name: url.lastPathComponent, pixelSize: loaded.uprightSize,
                         preview: preview, thumbnail: preview.cgImage()
                     )
-                    await MainActor.run { [weak self] in self?.didLoad(item) }
+                    await MainActor.run { [weak self] in
+                        self?.didLoad(item, into: index == 0 ? cellID : nil, reveal: index == 0)
+                    }
                 } catch {
                     await MainActor.run { [weak self] in
                         self?.errorMessage = "\(url.lastPathComponent) could not be opened."
@@ -190,17 +197,30 @@ final class AppModel {
         var next = sheet
         for i in next.cells.indices { next.cells[i].imageID = nil }
         sheet = next
-        if sheet.layout.template == .contactSheet { relayout() }
+        relayout()
     }
 
-    private func didLoad(_ item: LibraryItem) {
+    private func didLoad(_ item: LibraryItem, into cellID: UUID?, reveal: Bool) {
         library.append(item)
         if sheet.layout.template == .contactSheet {
             relayout()
-        } else if let index = sheet.cells.firstIndex(where: { $0.imageID == nil }) {
-            place(item.id, inCellAt: index)
+        } else {
+            if let index = sheet.cells.firstIndex(where: { $0.id == cellID }) ?? nextFreeCell() {
+                place(item.id, inCellAt: index)
+                if reveal { currentPage = sheet.cells[index].page }
+            }
         }
         refreshPreviews()
+    }
+
+    /// First empty cell, on a new page when all are taken.
+    private func nextFreeCell() -> Int? {
+        if let index = sheet.cells.firstIndex(where: { $0.imageID == nil }) { return index }
+        guard !sheet.cells.isEmpty else { return nil }
+        var next = sheet
+        next.appendPage()
+        sheet = next
+        return sheet.cells.firstIndex { $0.imageID == nil }
     }
 
     func removeFromLibrary(_ id: UUID) {
@@ -210,6 +230,7 @@ final class AppModel {
         for i in next.cells.indices where next.cells[i].imageID == id {
             next.cells[i].imageID = nil
         }
+        next.removeEmptyPages()
         sheet = next
         if sheet.layout.template == .contactSheet { relayout() }
     }
@@ -222,12 +243,11 @@ final class AppModel {
         selectedCellID = cellID
     }
 
-    /// Puts an image into the selected cell, else the first empty one.
+    /// Puts an image into the selected cell, else the first empty one, else on a new page.
     func placeInNextCell(_ imageID: UUID) {
-        let index = sheet.cells.firstIndex { $0.id == selectedCellID }
-            ?? sheet.cells.firstIndex { $0.imageID == nil }
-        guard let index else { return }
+        guard let index = sheet.cells.firstIndex(where: { $0.id == selectedCellID }) ?? nextFreeCell() else { return }
         place(imageID, inCellAt: index)
+        currentPage = sheet.cells[index].page
     }
 
     private func place(_ imageID: UUID, inCellAt index: Int) {
@@ -239,7 +259,11 @@ final class AppModel {
     }
 
     func clearCell(_ cellID: UUID) {
-        updateCell(cellID) { $0.imageID = nil }
+        guard let index = sheet.cells.firstIndex(where: { $0.id == cellID }) else { return }
+        var next = sheet
+        next.cells[index].imageID = nil
+        next.removeEmptyPages()
+        sheet = next
     }
 
     func updateCell(_ cellID: UUID, _ change: (inout Cell) -> Void) {
@@ -264,6 +288,10 @@ final class AppModel {
         }
     }
 
+    func showPage(_ page: Int) {
+        currentPage = min(max(0, page), sheet.pageCount - 1)
+    }
+
     /// A quarter turn when the image and the cell have different orientations.
     private func autoTurns(for imageID: UUID, frame: CGRect) -> Int {
         guard sheet.layout.autoRotate, let size = item(imageID)?.pixelSize else { return 0 }
@@ -282,6 +310,7 @@ final class AppModel {
         let geometryChanged = old.print.paperID != sheet.print.paperID || old.print.margin != sheet.print.margin
             || old.orientation != sheet.orientation || old.layout != sheet.layout
         if geometryChanged { relayout() }
+        if currentPage >= sheet.pageCount { currentPage = sheet.pageCount - 1 }
         if old.print.mediaTypeID != sheet.print.mediaTypeID || old.print.customProfilePath != sheet.print.customProfilePath {
             refreshPreviews()
         }
@@ -357,6 +386,7 @@ final class AppModel {
             ? String(format: "%g mm", m.top)
             : String(format: "%g / %g / %g / %g mm", m.top, m.left, m.bottom, m.right)
         let images = sheet.cells.filter { $0.imageID != nil }.count
+        let sheets = Set(sheet.cells.filter { $0.imageID != nil }.map(\.page)).count
         let manualFeed = source?.localizedCaseInsensitiveContains("Manual") == true
         return [
             "\(paper), \(orientation)" + (source.map { " · \($0)" } ?? ""),
@@ -364,7 +394,7 @@ final class AppModel {
             "Profile: \(paperProfile?.fileName ?? "none")",
             "Quality: \(quality)",
             "Margins: \(margins) (\(sheet.print.margin.label))",
-            images == 1 ? "1 image" : "\(images) images",
+            (images == 1 ? "1 image" : "\(images) images") + (sheets > 1 ? " on \(sheets) sheets" : ""),
         ] + (manualFeed ? ["", "Manual feed: load the sheet when the printer asks and press OK on the printer."] : [])
     }
 
