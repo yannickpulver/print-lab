@@ -192,8 +192,10 @@ private struct PrinterCard: View {
                 if let queue = model.queue {
                     TablerIcon("wifi", size: 13)
                     Text(queue.host ?? "USB")
-                    if let signal = model.status.remoteUI?.signal {
-                        Text("· \(signal) %" + (signal < 50 ? " (weak)" : ""))
+                    if let connection = model.connection {
+                        Text("· \(connection.label)")
+                            .foregroundStyle(connection.rating == .good ? Color.secondary : connection.tint)
+                            .help(connection.details)
                     }
                 }
             }
@@ -206,6 +208,9 @@ private struct PrinterCard: View {
             }
             ForEach(model.status.reasons.compactMap(Self.describe), id: \.self) { reason in
                 Hint(icon: "alert-triangle", text: reason, tint: .orange)
+            }
+            if let connection = model.connection, connection.rating != .good {
+                ConnectionHint(connection: connection)
             }
             if !model.status.markers.isEmpty {
                 InkLevels(markers: model.status.markers)
@@ -235,6 +240,32 @@ private struct PrinterCard: View {
         if reason.hasSuffix("-report") || ["spool-area-full", "other"].contains(base) { return nil }
         return known[base] ?? base.replacingOccurrences(of: "-", with: " ").capitalized
     }
+}
+
+/// Why the link to the printer is weak and what helps.
+private struct ConnectionHint: View {
+    let connection: ConnectionQuality
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Hint(icon: "wifi",
+                 text: "\(connection.label) connection, prints can take much longer: "
+                    + connection.causes.joined(separator: ", ") + ".",
+                 tint: connection.tint)
+            ForEach(connection.fixes, id: \.self) { fix in
+                Text("• " + fix)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 19)
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+        .help(connection.details)
+    }
+}
+
+private extension ConnectionQuality {
+    var tint: Color { rating == .poor ? .red : .orange }
 }
 
 /// Dot and one word or line about the printer or the running job.
@@ -772,8 +803,18 @@ private struct PrintCard: View {
                         Text("Preparing…").foregroundStyle(.secondary)
                     }
                 } else if let job = model.job {
-                    HStack {
-                        Text(job.state.label).foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Group {
+                            Text(job.state.label)
+                            // Running time while the job is open, total time when it is done.
+                            if let finished = job.finished {
+                                Text("· " + Duration.seconds(finished.timeIntervalSince(job.started))
+                                    .formatted(.units(allowed: [.hours, .minutes, .seconds], maximumUnitCount: 2)))
+                            } else {
+                                Text("· \(Text(job.started, style: .timer))").monospacedDigit()
+                            }
+                        }
+                        .foregroundStyle(.secondary)
                         Spacer()
                         if !job.state.isFinal {
                             Button("Cancel Job", role: .destructive) { model.cancelJob() }
