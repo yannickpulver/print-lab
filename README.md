@@ -2,7 +2,7 @@
 
 A macOS app for printing photos on Canon photo printers. An open alternative to Canon's Professional Print & Layout.
 
-![Print Lab with a sunset photo on A4 Hahnemühle Photo Rag](docs/screenshot.png)
+![Print Lab with an autumn photo on A4 Hahnemühle Photo Rag](docs/screenshot.png)
 
 - **Layouts:** one image per sheet, grids, contact sheets with captions. Drag to move the crop, drop images onto cells.
 - **Color:** 16-bit conversion into the paper profile, softproof with paper white. Pick the paper, Canon's or a paper maker's (e.g. Tecco, Hahnemühle), and the app sets its profile and media type.
