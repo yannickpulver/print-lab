@@ -4,7 +4,7 @@ import Foundation
 /// the web page knows the support code and Canon's message for it.
 ///
 /// `JS_MDL/model.js` holds the live state as JavaScript variables:
-/// `g_bst_st` (≠ "0": error), `g_prndoc` (support code as decimal, shown in hex), `g_err_msg_id`
+/// `g_bst_st` (state, see `errorStates`), `g_prndoc` (support code as decimal, shown in hex), `g_err_msg_id`
 /// (key into `rui/JS_TBL/table_error.js`, which points to a text in `LANG/messID.js`), `g_err_url` (Canon help).
 struct RemoteUIStatus: Hashable, Sendable {
     struct PrinterError: Hashable, Sendable {
@@ -19,6 +19,11 @@ struct RemoteUIStatus: Hashable, Sendable {
     var signal: Int?
     var linkQuality: Int?
 
+    /// `g_bst_st` values Canon's page shows as a problem: "3" an error with support code, "4" "Check the printer."
+    /// The others are fine: "0" ready, "1" busy with another task, "2" in operation (also while it waits
+    /// for paper in the manual feed), "5" cleaning, "6" test print.
+    static let errorStates: Set<String> = ["3", "4"]
+
     /// Hints for codes where the printer only says "Operator error has occurred."
     static let hints: [String: String] = [
         "1250": "The paper output tray is closed. Open the output tray.",
@@ -30,7 +35,7 @@ struct RemoteUIStatus: Hashable, Sendable {
         var status = RemoteUIStatus()
         status.signal = vars["g_signal_strength"].flatMap { Int($0) }
         status.linkQuality = vars["g_link_quality"].flatMap { Int($0) }
-        guard let state = vars["g_bst_st"], state != "0" else { return status }
+        guard let state = vars["g_bst_st"], errorStates.contains(state) else { return status }
 
         var code: String?
         if state == "3", let doc = vars["g_prndoc"].flatMap({ Int($0) }) {

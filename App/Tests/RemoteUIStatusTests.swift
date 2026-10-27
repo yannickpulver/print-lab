@@ -37,6 +37,13 @@ struct RemoteUIStatusTests {
         #expect(status.linkQuality == 84)
     }
 
+    @Test func printerInOperationIsNoError() {
+        // State 2 while printing, also while the printer waits for a sheet in the manual feed.
+        let status = RemoteUIStatus.parse(modelJS: Self.model(state: "2", doc: "0", id: "HTTP_ERR_DISP_IDLE"),
+                                          messages: messages)
+        #expect(status.error == nil)
+    }
+
     @Test func supportCodeIsPrndocInHex() {
         // 4688 = 0x1250: the closed output tray seen on the real printer.
         let status = RemoteUIStatus.parse(modelJS: Self.model(state: "3", doc: "4688", id: "HTTP_ERR_DISP_DOC_ETC"),

@@ -357,6 +357,7 @@ final class AppModel {
             ? String(format: "%g mm", m.top)
             : String(format: "%g / %g / %g / %g mm", m.top, m.left, m.bottom, m.right)
         let images = sheet.cells.filter { $0.imageID != nil }.count
+        let manualFeed = source?.localizedCaseInsensitiveContains("Manual") == true
         return [
             "\(paper), \(orientation)" + (source.map { " · \($0)" } ?? ""),
             media,
@@ -364,7 +365,7 @@ final class AppModel {
             "Quality: \(quality)",
             "Margins: \(margins) (\(sheet.print.margin.label))",
             images == 1 ? "1 image" : "\(images) images",
-        ]
+        ] + (manualFeed ? ["", "Manual feed: load the sheet when the printer asks and press OK on the printer."] : [])
     }
 
     func print() {

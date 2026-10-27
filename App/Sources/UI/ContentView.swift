@@ -19,10 +19,6 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Toggle(isOn: $model.softproof) {
-                    Label { Text("Softproof") } icon: { TablerIcon("eye", size: 18) }
-                }
-                .help("Show colors as they will look on the selected paper")
                 Button {
                     showInspector.toggle()
                 } label: {
